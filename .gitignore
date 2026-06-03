@@ -1,0 +1,24 @@
+# Python
+backend/venv/
+backend/**/__pycache__/
+*.pyc
+.Python
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# Env secrets
+.env
+.env.*
+
+# model.pt 는 저장소에 포함 (clone 후 즉시 실행용)
+# 없으면 setup.ps1 이 train.py 로 생성
