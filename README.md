@@ -1,6 +1,6 @@
-# Trajectory Predictor — 실시간 궤적 예측·유도 미사일 시뮬레이션
+# 에어 컴뱃 (Trajectory Predictor)
 
-플레이어 전투기 조작, 드론 AI, 유도 미사일, 칼만/LSTM 예측, Canvas 시각화를 포함한 풀스택 시뮬레이터입니다.
+3D 공중 전투 시뮬레이션 — 플레이어 전투기, 드론 AI, 호밍 미사일, 실시간 WebSocket, Three.js 비주얼.
 
 ## 빠른 시작 (Windows)
 
@@ -18,22 +18,22 @@ cd trajectory-predictor
 - 조작: **WASD**, **Shift** 부스트, **마우스** 조준
 - API 확인: http://127.0.0.1:8000/health → `version: 2`, `drone_count: 2`
 
-## GitHub에 올리기 (본인 저장소)
+## GitHub에 올리기
 
-1. [GitHub](https://github.com/new)에서 새 저장소 생성 (예: `trajectory-predictor`, Public)
-2. 프로젝트 폴더에서:
+로컬 Git 커밋은 이미 되어 있습니다. GitHub에 올리려면:
 
 ```powershell
 cd trajectory-predictor
-git init
-git add .
-git commit -m "Initial commit: trajectory predictor simulation"
-git branch -M main
+gh auth login          # 최초 1회: 브라우저로 GitHub 로그인
+.\push-to-github.ps1   # 저장소 생성 + 푸시
+```
+
+수동으로 할 경우: [github.com/new](https://github.com/new)에서 `trajectory-predictor` 저장소를 만든 뒤:
+
+```powershell
 git remote add origin https://github.com/YOUR_USERNAME/trajectory-predictor.git
 git push -u origin main
 ```
-
-> Git이 없다면 [Git for Windows](https://git-scm.com/download/win) 설치 후 터미널을 다시 엽니다.
 
 다른 PC에서 다시 받을 때:
 
