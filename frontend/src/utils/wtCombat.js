@@ -46,6 +46,8 @@ export function findPrimaryThreat(player, targets, projectiles) {
         kind: 'missile',
         id: m.id,
         dist: d,
+        hp: m.hp ?? m.hp_max ?? 3,
+        hpMax: m.hp_max ?? 3,
         bearing: Math.atan2(dx, dz),
         alt: m.altitude ?? pAlt,
         vx: m.velocity?.x ?? 0,

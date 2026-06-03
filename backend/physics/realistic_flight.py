@@ -15,8 +15,9 @@ BANK_TO_YAW = 1.75
 BANK_DAMP = 3.2
 SPEED_ACCEL = 1.8
 SPEED_DECEL = 2.4
-MIN_SPEED_RATIO = 0.18
-THROTTLE_IDLE = 0.32
+MIN_SPEED_RATIO = 0.12
+THROTTLE_IDLE = 0.0
+COAST_BRAKE = 0.62
 VERTICAL_PITCH_RATE = 1.15
 CLIMB_FROM_PITCH = 0.95
 DRAG_COAST = 0.45
@@ -31,7 +32,7 @@ def integrate_throttle_free(
     elif throttle_cmd < -0.05:
         t += throttle_cmd * 0.95 * dt
     else:
-        t += (THROTTLE_IDLE - t) * 0.28 * dt
+        t += (THROTTLE_IDLE - t) * 0.55 * dt
     if boost:
         t = min(1.12, t + 0.65 * dt)
     return float(max(0.0, min(1.12, t)))
@@ -82,9 +83,10 @@ def update_free_flight(
     pitch = float(max(PITCH_MIN, min(PITCH_MAX, pitch)))
 
     cap = 1.14 if boost else 1.0
-    target_speed = max(max_mps * MIN_SPEED_RATIO, throttle * max_mps * cap)
-    if throttle < 0.08:
-        target_speed = max(max_mps * MIN_SPEED_RATIO * 0.85, speed - max_mps * 0.15 * dt)
+    if throttle < 0.04:
+        target_speed = max(0.0, speed - max_mps * COAST_BRAKE * dt)
+    else:
+        target_speed = max(max_mps * MIN_SPEED_RATIO * throttle, throttle * max_mps * cap)
 
     accel = SPEED_ACCEL if target_speed > speed else SPEED_DECEL
     speed += (target_speed - speed) * min(1.0, accel * dt)

@@ -1,12 +1,14 @@
 import { useSimulationStore } from '../store/simulationStore';
 import { sendWsRestart } from '../services/api';
 
-export default function GameOverlay({ wsRef, onStart }) {
+export default function GameOverlay({ wsRef, onStart, onRetry }) {
   const connected = useSimulationStore((s) => s.connected);
   const gameStarted = useSimulationStore((s) => s.gameStarted);
   const game = useSimulationStore((s) => s.game);
   const hit = useSimulationStore((s) => s.hit);
   const hitTimer = useSimulationStore((s) => s.hitTimer);
+  const lastFireMsg = useSimulationStore((s) => s.lastFireMsg);
+  const lastFireIntercept = useSimulationStore((s) => s.lastFireIntercept);
   const setPanelOpen = useSimulationStore((s) => s.setPanelOpen);
   const panelOpen = useSimulationStore((s) => s.panelOpen);
 
@@ -16,9 +18,9 @@ export default function GameOverlay({ wsRef, onStart }) {
         <div className="max-w-md text-center px-8 py-10 rounded-xl border border-cyan-500/40 bg-black/55 shadow-2xl">
           <h1 className="text-3xl font-bold text-white tracking-wide mb-2">에어 컴뱃</h1>
           <p className="text-cyan-200/90 text-sm mb-6 leading-relaxed">
-            적 드론을 격추하고 들어오는 미사일을 피하세요.
+            웨이브마다 드론을 모두 격추하면 다음 단계로 진행됩니다.
             <br />
-            실시간 3D 전투 시뮬레이션
+            HP가 0이 되면 미션 실패 (미사일 피해 33)
           </p>
           <div
             className={`text-xs font-mono mb-4 px-3 py-2 rounded ${
@@ -36,10 +38,29 @@ export default function GameOverlay({ wsRef, onStart }) {
             전투 시작
           </button>
           <p className="text-[10px] text-white/45 mt-4 font-mono leading-relaxed">
-            W/S 가속 · A/D 뱅크 선회 · Space/Ctrl 피치
-            <br />
-            클릭+마우스 시야 · 좌클릭/F 사격 · V 시점 · 휠 줌
+            W 가속 · 좌클릭/F 기관포 · 미사일 3발 격추 · 클릭+마우스 시야
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (game.game_over) {
+    return (
+      <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm pointer-events-auto">
+        <div className="text-center px-8 py-10 rounded-xl border border-red-500/60 bg-red-950/80 shadow-2xl max-w-md">
+          <h2 className="text-3xl font-black text-red-400 mb-2">미션 실패</h2>
+          <p className="text-white/80 text-sm mb-4">
+            Wave {game.wave} · 점수 {game.score} · 격추 {game.kills}
+          </p>
+          <p className="text-red-200/90 text-xs mb-6">HP가 모두 소진되었습니다.</p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="w-full py-3 rounded-lg font-bold bg-gradient-to-r from-cyan-600 to-blue-500 text-white hover:from-cyan-500 hover:to-blue-400"
+          >
+            다시 도전
+          </button>
         </div>
       </div>
     );
@@ -47,6 +68,18 @@ export default function GameOverlay({ wsRef, onStart }) {
 
   return (
     <div className="absolute inset-0 z-25 pointer-events-none select-none">
+      {game.wave_clear && (
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 text-center pointer-events-none">
+          <div className="text-2xl font-black text-cyan-300 drop-shadow-lg animate-pulse">
+            WAVE {game.wave} 시작!
+          </div>
+          <div className="text-sm text-white/70 mt-1 font-mono">
+            드론 {game.drones_total}기 · 미사일 HP {Math.round(game.missile_hp_max)} · 동시{' '}
+            {game.max_missiles}발
+          </div>
+        </div>
+      )}
+
       <div className="absolute top-3 left-3 flex gap-3 font-mono text-sm drop-shadow-lg">
         <div className="bg-black/50 border border-white/20 px-3 py-2 rounded">
           <span className="text-white/60 text-[10px] block">HP</span>
@@ -67,13 +100,25 @@ export default function GameOverlay({ wsRef, onStart }) {
         <div className="bg-black/50 border border-white/20 px-3 py-2 rounded text-cyan-300">
           <span className="text-white/60 text-[10px] block">WAVE</span>
           <span className="text-xl font-bold">{game.wave}</span>
-          <span className="text-[10px] text-white/50 ml-1">K{game.kills}</span>
+          <div className="text-[10px] text-white/50 mt-0.5">
+            드론 {game.drones_alive}/{game.drones_total}
+          </div>
         </div>
       </div>
 
+      {lastFireMsg && (
+        <div
+          className={`absolute top-[22%] left-1/2 -translate-x-1/2 font-bold text-lg tracking-wide drop-shadow-lg ${
+            lastFireIntercept ? 'text-cyan-300' : 'text-yellow-200'
+          }`}
+        >
+          {lastFireMsg}
+        </div>
+      )}
+
       {hit && hitTimer > 0 && (
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 text-red-500 font-black text-2xl tracking-widest animate-pulse drop-shadow-lg">
-          ◆ MISSILE HIT
+        <div className="absolute top-[18%] left-1/2 -translate-x-1/2 text-red-500 font-black text-xl tracking-widest animate-pulse drop-shadow-lg">
+          ◆ MISSILE HIT -33
         </div>
       )}
 
@@ -89,12 +134,8 @@ export default function GameOverlay({ wsRef, onStart }) {
 
       {!connected && (
         <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-red-900/80 text-white text-sm px-4 py-2 rounded animate-pulse pointer-events-auto">
-          연결 끊김 — 백엔드 재시작 중…
-          <button
-            type="button"
-            className="ml-3 underline"
-            onClick={() => sendWsRestart(wsRef?.current)}
-          >
+          연결 끊김
+          <button type="button" className="ml-3 underline" onClick={() => sendWsRestart(wsRef?.current)}>
             재연결
           </button>
         </div>

@@ -31,9 +31,29 @@ export function useSimulation() {
       (msg) => {
         if (msg.type === 'state' && msg.payload) {
           applyServerState(msg.payload);
-        } else if (msg.type === 'fire_result' && msg.payload?.hit) {
-          useSimulationStore.setState({ lastFireHit: true });
-          setTimeout(() => useSimulationStore.setState({ lastFireHit: false }), 120);
+        } else if (msg.type === 'fire_result' && msg.payload?.fired) {
+          const p = msg.payload;
+          useSimulationStore.setState({
+            lastFireHit: !!p.hit,
+            lastFireIntercept: !!p.intercept,
+            lastFireMsg:
+              p.intercept
+                ? '미사일 격추!'
+                : p.hit_type === 'missile'
+                  ? `미사일 명중 (${Math.round(p.missile_hp_left ?? 0)}/${Math.round(p.missile_hp_max ?? 3)})`
+                  : p.hit
+                    ? '명중'
+                    : '',
+          });
+          setTimeout(
+            () =>
+              useSimulationStore.setState({
+                lastFireHit: false,
+                lastFireIntercept: false,
+                lastFireMsg: '',
+              }),
+            p.intercept ? 900 : 200
+          );
         }
       },
       async () => {

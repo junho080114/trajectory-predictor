@@ -272,9 +272,42 @@ export function updateDrone3D(group, simX, simY, vx, vy, dt, time = 0, flight = 
   }
 }
 
-export function createMissile3D(_texture, homing) {
+/** 플레이어 기관포 탄환 */
+export function createBullet3D() {
+  const group = new THREE.Group();
+  group.userData.smooth = { x: 0, y: 0, z: 0, yaw: 0 };
+  group.userData.isBullet = true;
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffee88,
+    transparent: true,
+    opacity: 0.95,
+  });
+  const core = new THREE.Mesh(new THREE.SphereGeometry(1.2, 5, 5), mat);
+  group.add(core);
+  const trail = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.35, 0.8, 5, 4),
+    new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.7 })
+  );
+  trail.rotation.x = Math.PI / 2;
+  trail.position.z = -3;
+  group.add(trail);
+  return group;
+}
+
+export function updateBullet3D(group, simX, simY, vx, vy, dt, altM = 4500) {
+  const s = group.userData.smooth;
+  s.x = simX;
+  s.y = altitudeToY(altM);
+  s.z = simY;
+  group.position.set(s.x, s.y, s.z);
+  const h = headingFromVelocity(vx, vy);
+  if (h != null) orientGroupToHeading(group, h, 0, 0, dt);
+}
+
+export function createMissile3D(_texture, homing, hpMax = 0) {
   const group = new THREE.Group();
   group.userData.smooth = { x: 0, y: 18, z: 0, yaw: 0, quat: new THREE.Quaternion() };
+  group.userData.hpMax = hpMax;
 
   const color = homing ? 0xcc4422 : 0x667070;
   const mat = new THREE.MeshLambertMaterial({ color });

@@ -27,17 +27,26 @@ from physics.arena import (
 )
 from physics.drone_ai import apply_evasion_velocity, compute_missile_threat_3d
 from physics.combat import (
+    BULLET_LIFE,
+    BULLET_RADIUS,
     CANNON_COOLDOWN,
     CANNON_DAMAGE,
+    CANNON_RANGE,
+    CANNON_SPEED,
     DRONE_MAX_HP,
     HIT_SCORE,
+    INTERCEPT_SCORE,
     KILL_SCORE,
+    MISSILE_HIT_DAMAGE,
+    MISSILE_HIT_RADIUS,
+    MISSILE_MAX_HP,
     MISSILE_PLAYER_DAMAGE,
     PLAYER_MAX_HP,
     aim_vector,
     ray_hit_target,
 )
 from physics.realistic_flight import integrate_throttle_free, update_free_flight
+from physics.wave_system import wave_params
 from physics.homing import compute_lead_point
 from physics.missile_ai import SmartMissileTracker
 from physics.intercept import solve_intercept
@@ -113,6 +122,9 @@ class ProjectileEntity:
     altitude: float = PLAYER_ALT_DEFAULT - 120.0
     tracker: SmartMissileTracker = field(default_factory=SmartMissileTracker)
     from_player: bool = False
+    hp: float = 0.0
+    life: float = 0.0
+    climb_rate: float = 0.0
 
 
 class SimulationEngine:
@@ -155,11 +167,16 @@ class SimulationEngine:
         self.game_score: int = 0
         self.game_kills: int = 0
         self.game_wave: int = 1
+        self.game_over: bool = False
+        self._wave_clear_timer: float = 0.0
+        self._wave_missile_hp: float = float(MISSILE_MAX_HP)
+        self._wave_drone_total: int = 3
         self.priority_target_id: str = ""
         self.last_hit_target_id: str = ""
         self._launch_rotate: int = 0
         self._ws_tick: int = 0
         self._spawn_targets()
+        self._apply_wave_config(self.game_wave)
 
     def apply_player_input(
         self,
@@ -218,16 +235,16 @@ class SimulationEngine:
                 hp=PLAYER_MAX_HP,
             )
             p = self.targets[PLAYER_ID]
-            init_mps = max(72.0, self.config.target_speed * KMH_TO_MPS * 0.48)
-            p.velocity = np.array([0.0, init_mps], dtype=float)
-            self._player_throttle_state = 0.58
-            self._player_speed = init_mps
+            p.velocity = np.zeros(2, dtype=float)
+            self._player_throttle_state = 0.0
+            self._player_speed = 0.0
             self._player_view_yaw = 0.0
             self._player_view_pitch = 0.0
             self._player_yaw_input = 0.0
             self._player_pitch_input = 0.0
             self.selected_target_id = PLAYER_ID
-            self._spawn_ai_targets()
+            self._apply_wave_config(1)
+            self._spawn_ai_targets(1)
             return
         positions = [
             (600.0, 200.0),
@@ -247,28 +264,51 @@ class SimulationEngine:
             )
         self.selected_target_id = "target-0"
 
-    def _spawn_ai_targets(self) -> None:
-        center = np.array([CANVAS_WIDTH * 0.5, CANVAS_HEIGHT * 0.5])
-        specs = [
-            ("drone-0", ARENA_CENTER_X + 140.0, ARENA_CENTER_Z - 120.0),
-            ("drone-1", ARENA_CENTER_X - 160.0, ARENA_CENTER_Z + 90.0),
-            ("drone-2", ARENA_CENTER_X + 80.0, ARENA_CENTER_Z + 150.0),
-        ]
-        for tid, x, y in specs:
-            pos = np.array([x, y], dtype=float)
-            to_center = center - pos
-            norm = np.linalg.norm(to_center)
-            direction = to_center / norm if norm > 1e-6 else np.array([1.0, 0.0])
+    def _apply_wave_config(self, wave: int) -> None:
+        p = wave_params(wave)
+        self._wave_missile_hp = float(p["missile_hp"])
+        self._wave_drone_total = int(p["drone_count"])
+        self.config.max_active_missiles = int(p["max_active_missiles"])
+        self.config.ai_difficulty = float(p["ai_difficulty"])
+
+    def _count_drones(self) -> int:
+        return sum(
+            1
+            for t in self.targets.values()
+            if t.is_drone or str(t.id).startswith("drone-")
+        )
+
+    def _remove_all_drones(self) -> None:
+        for tid in list(self.targets.keys()):
+            if tid.startswith("drone-"):
+                del self.targets[tid]
+
+    def _spawn_ai_targets(self, wave: int | None = None) -> None:
+        w = wave if wave is not None else self.game_wave
+        p = wave_params(w)
+        count = int(p["drone_count"])
+        drone_hp = DRONE_MAX_HP + float(p["drone_hp_bonus"])
+        self._remove_all_drones()
+        self._wave_drone_total = count
+
+        for i in range(count):
+            tid = f"drone-{i}"
+            x, z, alt = random_point_in_sphere(random)
+            pos = np.array([x, z], dtype=float)
+            to_player = np.array([ARENA_CENTER_X, ARENA_CENTER_Z]) - pos
+            norm = float(np.linalg.norm(to_player))
+            direction = (
+                to_player / norm if norm > 1e-6 else np.array([1.0, 0.0], dtype=float)
+            )
             speed = self.config.target_speed * KMH_TO_MPS * DRONE_SPEED_RATIO
-            vel = direction * speed
+            vel = direction * speed * (0.9 + random.uniform(0, 0.2))
             wp = np.array(
                 [
-                    random.uniform(200, CANVAS_WIDTH - 200),
-                    random.uniform(120, CANVAS_HEIGHT - 120),
+                    random.uniform(ARENA_CENTER_X - 200, ARENA_CENTER_X + 200),
+                    random.uniform(ARENA_CENTER_Z - 200, ARENA_CENTER_Z + 200),
                 ],
                 dtype=float,
             )
-            alt = ARENA_ALT_CENTER + random.uniform(-160, 160)
             self.targets[tid] = TargetEntity(
                 id=tid,
                 position=pos,
@@ -278,8 +318,26 @@ class SimulationEngine:
                 drone_waypoint=wp,
                 altitude=alt,
                 heading=math.atan2(float(vel[0]), float(vel[1])),
-                hp=DRONE_MAX_HP,
+                hp=drone_hp,
             )
+
+    def _check_wave_complete(self) -> None:
+        if self.game_over or self._wave_clear_timer > 0.0:
+            return
+        if self._count_drones() > 0:
+            return
+        self._advance_wave()
+
+    def _advance_wave(self) -> None:
+        cleared = self.game_wave
+        bonus = wave_params(cleared)["wave_clear_bonus"]
+        self.game_score += int(bonus)
+        self.game_wave += 1
+        self._wave_clear_timer = 3.0
+        self.projectiles.clear()
+        self._auto_fire_cooldown = 1.2
+        self._apply_wave_config(self.game_wave)
+        self._spawn_ai_targets(self.game_wave)
 
     def get_lstm(self) -> LSTMPredictor:
         if self._lstm is None:
@@ -302,8 +360,8 @@ class SimulationEngine:
             return 0
         has = any(t.is_drone or t.id.startswith("drone-") for t in self.targets.values())
         if not has:
-            self._spawn_ai_targets()
-        return sum(1 for t in self.targets.values() if t.is_drone or t.id.startswith("drone-"))
+            self._spawn_ai_targets(self.game_wave)
+        return self._count_drones()
 
     def restart(self) -> None:
         self.targets.clear()
@@ -330,9 +388,12 @@ class SimulationEngine:
         self.game_score = 0
         self.game_kills = 0
         self.game_wave = 1
+        self.game_over = False
+        self._wave_clear_timer = 0.0
         self.priority_target_id = ""
         self.last_hit_target_id = ""
         self._spawn_targets()
+        self._apply_wave_config(self.game_wave)
 
     def select_target(self, target_id: str) -> bool:
         if target_id in self.targets:
@@ -495,9 +556,56 @@ class SimulationEngine:
             w *= 1.35
         return w
 
+    def _is_enemy_missile(self, proj: ProjectileEntity) -> bool:
+        if not proj.homing or not proj.active or proj.from_player:
+            return False
+        tid = proj.locked_target_id or proj.target_id
+        return tid == PLAYER_ID and PLAYER_ID in self.targets
+
+    def _spawn_player_bullet(
+        self, player: TargetEntity, aim_h: float, aim_p: float
+    ) -> str:
+        hsp = CANNON_SPEED * math.cos(aim_p)
+        vel = np.array(
+            [math.sin(aim_h) * hsp, math.cos(aim_h) * hsp],
+            dtype=float,
+        )
+        bid = f"bullet-{uuid.uuid4().hex[:8]}"
+        self.projectiles[bid] = ProjectileEntity(
+            id=bid,
+            position=player.position.copy(),
+            velocity=vel,
+            homing=False,
+            from_player=True,
+            speed=CANNON_SPEED,
+            target_id="",
+            locked_target_id="",
+            prev_position=player.position.copy(),
+            altitude=float(player.altitude),
+            life=BULLET_LIFE,
+            hp=0.0,
+            climb_rate=float(CANNON_SPEED * math.sin(aim_p)),
+        )
+        return bid
+
+    def _damage_enemy_missile(self, proj: ProjectileEntity) -> dict:
+        hp_max = float(getattr(proj, "hp", self._wave_missile_hp))
+        if hp_max <= 0:
+            hp_max = self._wave_missile_hp
+        proj.hp = hp_max - MISSILE_HIT_DAMAGE
+        destroyed = proj.hp <= 0.0
+        if destroyed:
+            proj.active = False
+            self.game_score += INTERCEPT_SCORE
+        return {
+            "destroyed": destroyed,
+            "hp_left": max(0.0, proj.hp),
+            "hp_max": hp_max,
+        }
+
     def player_try_fire(self) -> dict:
-        """플레이어 기관포 — 조준 방향 히트스캔."""
-        if self._cannon_cooldown > 0.0 or self.player_hp <= 0.0:
+        """기관포: 총알 발사 + 조준선 히트스캔(드론·미사일)."""
+        if self._cannon_cooldown > 0.0 or self.player_hp <= 0.0 or self.game_over:
             return {"fired": False}
         player = self.targets.get(PLAYER_ID)
         if not player:
@@ -506,8 +614,29 @@ class SimulationEngine:
         aim_p = player.pitch + self._player_view_pitch * 0.85
         direction = aim_vector(aim_h, aim_p)
         origin = player.position.copy()
-        best: Optional[TargetEntity] = None
+        bullet_id = self._spawn_player_bullet(player, aim_h, aim_p)
+
         best_along = 1e9
+        best_drone: Optional[TargetEntity] = None
+        best_missile: Optional[ProjectileEntity] = None
+
+        for proj in self.projectiles.values():
+            if not self._is_enemy_missile(proj):
+                continue
+            along = ray_hit_target(
+                origin,
+                direction,
+                proj.position,
+                proj.altitude,
+                player.altitude,
+                radius=MISSILE_HIT_RADIUS,
+                max_dist=CANNON_RANGE,
+            )
+            if along is not None and along < best_along:
+                best_along = along
+                best_missile = proj
+                best_drone = None
+
         for tgt in self.targets.values():
             if not tgt.is_drone:
                 continue
@@ -517,23 +646,90 @@ class SimulationEngine:
                 tgt.position,
                 tgt.altitude,
                 player.altitude,
+                max_dist=CANNON_RANGE,
             )
             if along is not None and along < best_along:
                 best_along = along
-                best = tgt
+                best_drone = tgt
+                best_missile = None
+
         self._cannon_cooldown = CANNON_COOLDOWN
-        if best is None:
-            return {"fired": True, "hit": False}
-        best.hp -= CANNON_DAMAGE
-        self.game_score += HIT_SCORE
-        killed = best.hp <= 0.0
-        if killed:
-            self.game_kills += 1
-            self.game_score += KILL_SCORE
-            self._respawn_drone(best)
-            if self.game_kills % 3 == 0:
-                self.game_wave += 1
-        return {"fired": True, "hit": True, "killed": killed, "target_id": best.id}
+
+        if best_missile is not None:
+            info = self._damage_enemy_missile(best_missile)
+            return {
+                "fired": True,
+                "hit": True,
+                "hit_type": "missile",
+                "target_id": best_missile.id,
+                "bullet_id": bullet_id,
+                "intercept": info["destroyed"],
+                "missile_hp_left": info["hp_left"],
+                "missile_hp_max": info["hp_max"],
+            }
+
+        if best_drone is not None:
+            best_drone.hp -= CANNON_DAMAGE
+            self.game_score += HIT_SCORE
+            killed = best_drone.hp <= 0.0
+            if killed:
+                self.game_kills += 1
+                self.game_score += KILL_SCORE + HIT_SCORE
+                did = best_drone.id
+                self.targets.pop(did, None)
+                self._check_wave_complete()
+            return {
+                "fired": True,
+                "hit": True,
+                "hit_type": "drone",
+                "killed": killed,
+                "target_id": best_drone.id,
+                "bullet_id": bullet_id,
+            }
+
+        return {"fired": True, "hit": False, "bullet_id": bullet_id}
+
+    def _update_player_bullet(
+        self, proj: ProjectileEntity, dt: float, to_remove: List[str], pid: str
+    ) -> None:
+        proj.life = float(getattr(proj, "life", 0.0)) - dt
+        if proj.life <= 0.0:
+            proj.active = False
+            to_remove.append(pid)
+            return
+
+        prev_pos = proj.position.copy()
+        prev_alt = float(proj.altitude)
+        proj.position = proj.position + proj.velocity * dt
+        proj.altitude = float(proj.altitude + getattr(proj, "climb_rate", 0.0) * dt)
+
+        for mid, missile in list(self.projectiles.items()):
+            if mid == pid or not self._is_enemy_missile(missile):
+                continue
+            if check_collision_3d_swept_both(
+                prev_pos,
+                proj.position,
+                prev_alt,
+                proj.altitude,
+                BULLET_RADIUS,
+                missile.position,
+                missile.position,
+                float(missile.altitude),
+                float(missile.altitude),
+                MISSILE_HIT_RADIUS,
+                ALTITUDE_DODGE_BAND * 0.5,
+                segments=4,
+            ):
+                info = self._damage_enemy_missile(missile)
+                proj.active = False
+                to_remove.append(pid)
+                if not info["destroyed"]:
+                    pass
+                return
+
+        if float(np.linalg.norm(proj.position - prev_pos)) < 1e-6:
+            proj.active = False
+            to_remove.append(pid)
 
     def _select_launch_target(self) -> Optional[TargetEntity]:
         if self.config.player_control and PLAYER_ID in self.targets:
@@ -755,6 +951,7 @@ class SimulationEngine:
             angle_rad = math.radians(intercept.launch_angle_deg)
             vel = velocity_from_angle(speed, angle_rad)
         pid = f"proj-{uuid.uuid4().hex[:8]}"
+        is_at_player = self.config.player_control and target.is_player
         self.projectiles[pid] = ProjectileEntity(
             id=pid,
             position=LAUNCHER_POS.copy(),
@@ -766,6 +963,7 @@ class SimulationEngine:
             prev_position=LAUNCHER_POS.copy(),
             altitude=float(getattr(target, "altitude", PLAYER_ALT_DEFAULT)) - 40.0,
             tracker=SmartMissileTracker(),
+            hp=self._wave_missile_hp if is_at_player else 0.0,
         )
         self.hit = False
         return True
@@ -812,15 +1010,15 @@ class SimulationEngine:
             target.position = target.position + knock * 0.35
             target.trail.clear()
             if self.player_hp <= 0.0:
-                self.player_hp = PLAYER_MAX_HP
-                target.position = np.array([ARENA_CENTER_X, ARENA_CENTER_Z], dtype=float)
-                target.altitude = ARENA_ALT_CENTER
-                init_mps = max(72.0, self.config.target_speed * KMH_TO_MPS * 0.45)
-                target.velocity = np.array([0.0, init_mps], dtype=float)
-                self._player_throttle_state = 0.6
+                self.player_hp = 0.0
+                self.game_over = True
         elif target.id.startswith("drone-"):
             self.hit = False
-            self._respawn_drone(target)
+            self.game_kills += 1
+            self.game_score += KILL_SCORE
+            did = target.id
+            self.targets.pop(did, None)
+            self._check_wave_complete()
 
     def _interp_target_pos(
         self, target: TargetEntity, target_prev: Dict[str, np.ndarray], alpha: float
@@ -839,6 +1037,10 @@ class SimulationEngine:
         for pid, proj in list(self.projectiles.items()):
             if not proj.active:
                 to_remove.append(pid)
+                continue
+
+            if proj.from_player and not proj.homing:
+                self._update_player_bullet(proj, dt, to_remove, pid)
                 continue
 
             frame_start = proj.position.copy()
@@ -948,32 +1150,49 @@ class SimulationEngine:
             return
         scaled_dt = dt * self.config.sim_speed
         self.sim_time += scaled_dt
-        self._auto_fire_cooldown = max(0.0, self._auto_fire_cooldown - scaled_dt)
         self._cannon_cooldown = max(0.0, self._cannon_cooldown - scaled_dt)
         if self.hit_timer > 0:
             self.hit_timer -= scaled_dt
+
+        if self.game_over:
+            return
+
+        if self._wave_clear_timer > 0.0:
+            self._wave_clear_timer = max(0.0, self._wave_clear_timer - scaled_dt)
+            target_prev = {tid: t.position.copy() for tid, t in self.targets.items()}
+            player = self.targets.get(PLAYER_ID)
+            if player:
+                self._update_player_target(player, scaled_dt)
+            self._update_projectiles(scaled_dt, target_prev)
+            return
+
+        self._auto_fire_cooldown = max(0.0, self._auto_fire_cooldown - scaled_dt)
         target_prev = {tid: t.position.copy() for tid, t in self.targets.items()}
         for target in self.targets.values():
             self._update_target(target, scaled_dt)
         priority = self._select_launch_target()
-        if priority:
+        if priority and self.config.player_control and not self.game_over:
             self.priority_target_id = priority.id
-            if self.config.player_control and PLAYER_ID in self.targets:
+            if PLAYER_ID in self.targets:
                 self.selected_target_id = PLAYER_ID
             else:
                 self.selected_target_id = priority.id
             self._predict(priority, horizon=2.0)
             self.compute_intercept(priority)
-            fire_interval = max(1.8, 2.4 / max(0.5, self.config.ai_difficulty))
-            if self.config.player_control:
-                fire_interval = max(2.8, 3.6 / max(0.6, self.config.ai_difficulty))
+            wp = wave_params(self.game_wave)
+            fire_interval = float(wp["fire_interval_base"]) / max(
+                0.6, self.config.ai_difficulty
+            )
             max_missiles = max(1, int(self.config.max_active_missiles))
-            can_fire = len(self.projectiles) < max_missiles
+            enemy_missiles = sum(
+                1
+                for p in self.projectiles.values()
+                if p.homing and p.active and not p.from_player
+            )
+            can_fire = enemy_missiles < max_missiles
             if self.config.auto_fire and can_fire and self._auto_fire_cooldown <= 0:
-                launch_target = self._select_launch_target()
-                if launch_target:
-                    self.launch(launch_target.id)
-                self._auto_fire_cooldown = fire_interval
+                if self.launch(PLAYER_ID):
+                    self._auto_fire_cooldown = fire_interval
         self._update_projectiles(scaled_dt, target_prev)
         if self.projectiles:
             best_proj: Optional[ProjectileEntity] = None
@@ -1081,6 +1300,13 @@ class SimulationEngine:
                 "kills": int(self.game_kills),
                 "wave": int(self.game_wave),
                 "cannon_ready": self._cannon_cooldown <= 0.01,
+                "game_over": bool(self.game_over),
+                "wave_clear": self._wave_clear_timer > 0.05,
+                "wave_clear_timer": float(self._wave_clear_timer),
+                "drones_alive": self._count_drones(),
+                "drones_total": int(self._wave_drone_total),
+                "missile_hp_max": float(self._wave_missile_hp),
+                "max_missiles": int(self.config.max_active_missiles),
             },
             "projectiles": [
                 {
@@ -1094,8 +1320,16 @@ class SimulationEngine:
                     "locked_target_id": p.locked_target_id or p.target_id,
                     "lock_score": round(p.lock_score, 3),
                     "altitude": float(getattr(p, "altitude", PLAYER_ALT_DEFAULT)),
+                    "from_player": bool(getattr(p, "from_player", False)),
+                    "hp": float(getattr(p, "hp", 0.0)),
+                    "hp_max": float(
+                        self._wave_missile_hp
+                        if p.homing and not p.from_player
+                        else 0.0
+                    ),
                 }
                 for p in self.projectiles.values()
+                if p.active
             ],
             "priority_target_id": self.priority_target_id,
             "prediction": {

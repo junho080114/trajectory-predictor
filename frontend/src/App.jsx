@@ -33,10 +33,17 @@ export default function App() {
     document.body.requestPointerLock?.();
   }, [setGameStarted, pushConfig, wsRef]);
 
+  const handleRetry = useCallback(() => {
+    setGameStarted(true);
+    pushConfig({ paused: false, player_control: true, ai_targets: true, auto_fire: true });
+    sendWsRestart(wsRef.current);
+    document.body.requestPointerLock?.();
+  }, [setGameStarted, pushConfig, wsRef]);
+
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-[#030510]">
       <Scene3D />
-      <GameOverlay wsRef={wsRef} onStart={handleStart} />
+      <GameOverlay wsRef={wsRef} onStart={handleStart} onRetry={handleRetry} />
       {panelOpen && (
         <ControlPanel
           config={config}

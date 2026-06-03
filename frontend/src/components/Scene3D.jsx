@@ -30,6 +30,10 @@ import {
 
   updateDrone3D,
 
+  createBullet3D,
+
+  updateBullet3D,
+
   createMissile3D,
 
   updateMissile3D,
@@ -403,9 +407,13 @@ export default function Scene3D() {
 
       let mesh = entities.projectiles.get(p.id);
 
+      const isBullet = !!p.from_player;
+
       if (!mesh) {
 
-        mesh = createMissile3D(texMissile, !!p.homing);
+        mesh = isBullet
+          ? createBullet3D()
+          : createMissile3D(texMissile, !!p.homing, p.hp_max ?? 0);
 
         entities.projectiles.set(p.id, mesh);
 
@@ -413,23 +421,27 @@ export default function Scene3D() {
 
       }
 
-      updateMissile3D(
-
-        mesh,
-
-        p.position.x,
-
-        p.position.y,
-
-        p.velocity?.x ?? 0,
-
-        p.velocity?.y ?? 0,
-
-        dt,
-
-        p.altitude ?? 4300
-
-      );
+      if (isBullet) {
+        updateBullet3D(
+          mesh,
+          p.position.x,
+          p.position.y,
+          p.velocity?.x ?? 0,
+          p.velocity?.y ?? 0,
+          dt,
+          p.altitude ?? 4500
+        );
+      } else {
+        updateMissile3D(
+          mesh,
+          p.position.x,
+          p.position.y,
+          p.velocity?.x ?? 0,
+          p.velocity?.y ?? 0,
+          dt,
+          p.altitude ?? 4300
+        );
+      }
 
     };
 

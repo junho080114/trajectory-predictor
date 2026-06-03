@@ -96,6 +96,11 @@ export default function ArcadeCombatHUD() {
           />
           <div className="absolute left-6 top-0 text-[10px] font-mono text-white/90 whitespace-nowrap drop-shadow-md">
             {threat.kind === 'missile' ? 'MSL' : 'TGT'} {Math.round(threat.dist)}m
+            {threat.kind === 'missile' && threat.hpMax > 0 && (
+              <span className="text-yellow-200 ml-1">
+                [{Math.max(0, Math.ceil(threat.hp ?? threat.hpMax))}/{threat.hpMax}]
+              </span>
+            )}
           </div>
         </div>
       )}
