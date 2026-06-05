@@ -52,8 +52,17 @@ from physics.missile_ai import SmartMissileTracker
 from physics.intercept import solve_intercept
 from physics.projectile import integrate_projectile, simulate_trajectory, velocity_from_angle
 from prediction.kalman import TargetKalmanFilter
-from prediction.lstm_predictor import LSTMPredictor
 from prediction.trajectory_builder import build_smooth_trajectory, moving_average_smooth
+from runtime_profile import (
+    SKIP_TRAJECTORY_PREVIEW,
+    SKIP_WS_DEBUG,
+    SKIP_WS_PREDICTION,
+    TRAIL_MAX_PROJECTILE,
+    TRAIL_MAX_TARGET,
+    WS_HEAVY_EVERY,
+    WS_TRAIL_PROJECTILE,
+    WS_TRAIL_TARGET,
+)
 
 
 CANVAS_WIDTH = 1200.0
@@ -339,8 +348,10 @@ class SimulationEngine:
         self._apply_wave_config(self.game_wave)
         self._spawn_ai_targets(self.game_wave)
 
-    def get_lstm(self) -> LSTMPredictor:
+    def get_lstm(self):
         if self._lstm is None:
+            from prediction.lstm_predictor import LSTMPredictor
+
             self._lstm = LSTMPredictor()
         return self._lstm
 
@@ -492,8 +503,8 @@ class SimulationEngine:
         if self.config.use_lstm and self.config.player_control and target.is_player:
             self.get_lstm().add_observation(measured)
         target.trail.append(target.position.copy())
-        if len(target.trail) > 120:
-            target.trail = target.trail[-120:]
+        if len(target.trail) > TRAIL_MAX_TARGET:
+            target.trail = target.trail[-TRAIL_MAX_TARGET:]
         if self.config.player_control:
             self._apply_arena_clamp(target)
         else:
@@ -787,8 +798,8 @@ class SimulationEngine:
         target.kalman.update_dt(dt)
         target.kalman.update(measured)
         target.trail.append(target.position.copy())
-        if len(target.trail) > 120:
-            target.trail = target.trail[-120:]
+        if len(target.trail) > TRAIL_MAX_TARGET:
+            target.trail = target.trail[-TRAIL_MAX_TARGET:]
 
     def _update_target(self, target: TargetEntity, dt: float) -> None:
         if target.is_player and self.config.player_control:
@@ -824,12 +835,25 @@ class SimulationEngine:
         ):
             self.get_lstm().add_observation(measured)
         target.trail.append(target.position.copy())
-        if len(target.trail) > 120:
-            target.trail = target.trail[-120:]
+        if len(target.trail) > TRAIL_MAX_TARGET:
+            target.trail = target.trail[-TRAIL_MAX_TARGET:]
         target.position[0] = float(np.clip(target.position[0], TARGET_RADIUS, CANVAS_WIDTH - TARGET_RADIUS))
         target.position[1] = float(np.clip(target.position[1], TARGET_RADIUS, CANVAS_HEIGHT - TARGET_RADIUS))
 
+    def _predict_lite(self, target: TargetEntity, horizon: float = 2.0) -> None:
+        """Fast path for cloud: skip LSTM/smooth trajectory (combat hides prediction lines)."""
+        t = horizon
+        origin = target.position.copy()
+        self.linear_prediction = origin + target.velocity * t
+        self.kalman_prediction = self.linear_prediction.copy()
+        self.lstm_prediction = None
+        self.predicted_trajectory = []
+        self.future_prediction = self.linear_prediction.copy()
+
     def _predict(self, target: TargetEntity, horizon: float = 2.0) -> None:
+        if SKIP_WS_PREDICTION and self.config.player_control:
+            self._predict_lite(target, horizon)
+            return
         dt = 0.05
         t = horizon
         origin = target.position.copy()
@@ -920,7 +944,9 @@ class SimulationEngine:
         )
         self.last_intercept = result
         self.collision_time = t_hit
-        if self.config.homing_missiles or self.config.player_control:
+        if SKIP_TRAJECTORY_PREVIEW and self.config.player_control:
+            self.projectile_trajectory = []
+        elif self.config.homing_missiles or self.config.player_control:
             self.projectile_trajectory = self._simulate_homing_preview(target, duration=max(t_hit + 0.3, 2.0))
         else:
             vel = velocity_from_angle(mspd, math.radians(angle_deg))
@@ -1127,8 +1153,8 @@ class SimulationEngine:
 
             proj.prev_position = frame_start
             proj.trail.append(proj.position.copy())
-            if len(proj.trail) > 36:
-                proj.trail = proj.trail[-36:]
+            if len(proj.trail) > TRAIL_MAX_PROJECTILE:
+                proj.trail = proj.trail[-TRAIL_MAX_PROJECTILE:]
 
             if hit_any and hit_tgt is not None:
                 self._handle_target_hit(hit_tgt, pid)
@@ -1250,7 +1276,7 @@ class SimulationEngine:
 
     def to_ws_payload(self) -> dict:
         self._ws_tick += 1
-        send_heavy = self._ws_tick % 2 == 0
+        send_heavy = self._ws_tick % WS_HEAVY_EVERY == 0
         target = self.get_selected_target()
         tgt_pos = target.position if target else np.zeros(2)
         tgt_vel = target.velocity if target else np.zeros(2)
@@ -1277,7 +1303,7 @@ class SimulationEngine:
                     "id": t.id,
                     "position": {"x": float(t.position[0]), "y": float(t.position[1])},
                     "velocity": {"x": float(t.velocity[0]), "y": float(t.velocity[1])},
-                    "trail": [{"x": float(p[0]), "y": float(p[1])} for p in t.trail[-24:]],
+                    "trail": [{"x": float(p[0]), "y": float(p[1])} for p in t.trail[-WS_TRAIL_TARGET:]],
                     "is_player": t.is_player,
                     "is_drone": t.is_drone or t.id.startswith("drone-"),
                     "heading": float(getattr(t, "heading", 0.0)),
@@ -1313,7 +1339,7 @@ class SimulationEngine:
                     "id": p.id,
                     "position": {"x": float(p.position[0]), "y": float(p.position[1])},
                     "velocity": {"x": float(p.velocity[0]), "y": float(p.velocity[1])},
-                    "trail": [{"x": float(p[0]), "y": float(p[1])} for p in p.trail[-16:]],
+                    "trail": [{"x": float(p[0]), "y": float(p[1])} for p in p.trail[-WS_TRAIL_PROJECTILE:]],
                     "active": p.active,
                     "homing": p.homing,
                     "target_id": p.locked_target_id or p.target_id,
