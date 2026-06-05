@@ -908,7 +908,11 @@ class SimulationEngine:
         preview_tracker = SmartMissileTracker()
         steps = max(1, int(duration / dt))
         for _ in range(steps):
-            aim = self._smart_aim_point(target, pos)
+            if target.is_player and self.config.player_control:
+                aim = self._enemy_missile_aim_point(target, pos, mspd)
+            else:
+                kpos, kvel = target.kalman.get_state()
+                aim = kpos + kvel * 0.8
             vel, pos, _ = preview_tracker.guide_missile(
                 pos,
                 vel,
