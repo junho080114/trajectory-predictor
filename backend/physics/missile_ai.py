@@ -110,15 +110,20 @@ class SmartMissileTracker:
 
         vel_spd = float(np.linalg.norm(missile_vel))
         if vel_spd > 1e-6 and dist > 1e-6:
-            closing = float(np.dot(missile_vel / vel_spd, rel / dist))
-            # 측면으로 도는 중(종추 속도 낮음) → 직접 추격
-            if dist < 240.0 and closing < 0.2:
-                direct = rel / dist
-                spd = speed * 1.05
-                travel = min(spd * dt, max(dist * 0.95, 2.0))
+            rel_n = rel / dist
+            vel_n = missile_vel / vel_spd
+            closing = float(np.dot(vel_n, rel_n))
+            rel_vel = target_vel - missile_vel
+            dist_sq = float(np.dot(rel, rel)) + 1e-6
+            los_rate = abs((rel[0] * rel_vel[1] - rel[1] * rel_vel[0]) / dist_sq)
+            orbiting = dist < 300.0 and (closing < 0.35 or los_rate > 0.55)
+            if orbiting:
+                direct = rel_n
+                spd = speed * 1.08
+                travel = min(spd * dt, max(dist * 0.96, 2.0))
                 return direct * spd, missile_pos + direct * travel, spd
 
-        if dist < 90:
+        if dist < 120:
             direct = rel / max(dist, 1e-6)
             spd = speed * 1.1
             travel = min(spd * dt, max(dist * 0.98, 2.0))
