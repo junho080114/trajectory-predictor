@@ -154,7 +154,7 @@ class SimulationEngine:
         self.hit: bool = False
         self.hit_timer: float = 0.0
         self.sim_time: float = 0.0
-        self._lstm: Optional[LSTMPredictor] = None
+        self._lstm: Optional[Any] = None
         self._auto_fire_cooldown: float = 0.0
         self._fps: float = 60.0
         self._last_frame: float = time.perf_counter()
@@ -1358,37 +1358,54 @@ class SimulationEngine:
                 if p.active
             ],
             "priority_target_id": self.priority_target_id,
-            "prediction": {
-                "linear": {"x": float(self.linear_prediction[0]), "y": float(self.linear_prediction[1])},
-                "kalman": {"x": float(self.kalman_prediction[0]), "y": float(self.kalman_prediction[1])},
-                "lstm": {
-                    "x": float(self.lstm_prediction[0]),
-                    "y": float(self.lstm_prediction[1]),
+            "prediction": (
+                {"trajectory": [], "future": {"x": 0.0, "y": 0.0}}
+                if SKIP_WS_PREDICTION and self.config.player_control
+                else {
+                    "linear": {"x": float(self.linear_prediction[0]), "y": float(self.linear_prediction[1])},
+                    "kalman": {"x": float(self.kalman_prediction[0]), "y": float(self.kalman_prediction[1])},
+                    "lstm": {
+                        "x": float(self.lstm_prediction[0]),
+                        "y": float(self.lstm_prediction[1]),
+                    }
+                    if self.lstm_prediction is not None
+                    else None,
+                    "future": {"x": float(self.future_prediction[0]), "y": float(self.future_prediction[1])},
+                    "trajectory": self._downsample_points(self.predicted_trajectory, 28)
+                    if send_heavy
+                    else [],
                 }
-                if self.lstm_prediction is not None
-                else None,
-                "future": {"x": float(self.future_prediction[0]), "y": float(self.future_prediction[1])},
-                "trajectory": self._downsample_points(self.predicted_trajectory, 28)
-                if send_heavy
-                else [],
-            },
-            "projectile_trajectory": self._downsample_points(self.projectile_trajectory, 24)
-            if send_heavy
-            else [],
-            "debug": {
-                "target_position": {"x": float(tgt_pos[0]), "y": float(tgt_pos[1])},
-                "velocity": {"x": float(tgt_vel[0]), "y": float(tgt_vel[1])},
-                "speed_kmh": float(np.linalg.norm(tgt_vel) * 3.6),
-                "altitude": float(getattr(target, "altitude", PLAYER_ALT_DEFAULT)) if target else PLAYER_ALT_DEFAULT,
-                "future_prediction": {
-                    "x": float(self.future_prediction[0]),
-                    "y": float(self.future_prediction[1]),
-                },
-                "launch_angle": self.launch_angle_deg,
-                "collision_time": self.collision_time,
-                "priority_target_id": self.priority_target_id,
-                "last_hit_target_id": self.last_hit_target_id,
-            },
+            ),
+            "projectile_trajectory": (
+                []
+                if SKIP_WS_PREDICTION and self.config.player_control
+                else (
+                    self._downsample_points(self.projectile_trajectory, 24)
+                    if send_heavy
+                    else []
+                )
+            ),
+            "debug": (
+                {
+                    "drone_count": sum(1 for t in self.targets.values() if t.is_drone),
+                    "last_hit_target_id": self.last_hit_target_id,
+                }
+                if SKIP_WS_DEBUG and self.config.player_control
+                else {
+                    "target_position": {"x": float(tgt_pos[0]), "y": float(tgt_pos[1])},
+                    "velocity": {"x": float(tgt_vel[0]), "y": float(tgt_vel[1])},
+                    "speed_kmh": float(np.linalg.norm(tgt_vel) * 3.6),
+                    "altitude": float(getattr(target, "altitude", PLAYER_ALT_DEFAULT)) if target else PLAYER_ALT_DEFAULT,
+                    "future_prediction": {
+                        "x": float(self.future_prediction[0]),
+                        "y": float(self.future_prediction[1]),
+                    },
+                    "launch_angle": self.launch_angle_deg,
+                    "collision_time": self.collision_time,
+                    "priority_target_id": self.priority_target_id,
+                    "last_hit_target_id": self.last_hit_target_id,
+                }
+            ),
             "intercept": self.last_intercept.model_dump() if self.last_intercept else None,
             "engine_version": 3,
             "target_count": len(self.targets),

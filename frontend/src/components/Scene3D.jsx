@@ -448,6 +448,11 @@ export default function Scene3D() {
 
 
     const tick = (now) => {
+      if (document.hidden) {
+        clockRef.current.last = now;
+        animRef.current = requestAnimationFrame(tick);
+        return;
+      }
 
       const dt = Math.min(0.05, (now - clockRef.current.last) / 1000);
 
