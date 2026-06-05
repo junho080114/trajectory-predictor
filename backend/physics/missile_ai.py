@@ -40,20 +40,27 @@ class SmartMissileTracker:
         lstm_pos: Optional[np.ndarray] = None,
         difficulty: float = 1.0,
     ) -> np.ndarray:
-        pos = kalman_pos if kalman_pos is not None else position
-        vel = kalman_vel if kalman_vel is not None else velocity
+        if kalman_pos is not None and kalman_vel is not None:
+            pos = kalman_pos
+            vel = kalman_vel
+        else:
+            pos = position
+            vel = velocity
+
         acc_hist = self.estimate_acceleration()
         inp = input_dir if np.linalg.norm(input_dir) > 1e-6 else np.zeros(2)
+        if float(np.linalg.norm(inp)) > 1e-6:
+            inp = inp / float(np.linalg.norm(inp))
         inp_acc = inp * PLAYER_ACCEL_EST * (PLAYER_BOOST_EST if input_boost else 1.0)
-        acc = 0.5 * acc_hist + 0.5 * inp_acc
+        acc = 0.55 * acc_hist + 0.45 * inp_acc
 
         dist = float(np.linalg.norm(pos - missile_pos))
-        t_lead = (dist / max(missile_speed, 100.0)) * (1.0 + 0.12 * difficulty)
-        t_lead = min(t_lead, 2.2)
+        t_lead = (dist / max(missile_speed, 90.0)) * (0.92 + 0.14 * difficulty)
+        t_lead = min(t_lead, 2.6)
 
-        predicted = pos + vel * t_lead + 0.45 * acc * (t_lead**2)
+        predicted = pos + vel * t_lead + 0.48 * acc * (t_lead**2)
         if lstm_pos is not None:
-            predicted = 0.82 * predicted + 0.18 * lstm_pos
+            predicted = 0.72 * predicted + 0.28 * lstm_pos
         return predicted.astype(float)
 
     def guide_missile(

@@ -49,6 +49,7 @@ from physics.realistic_flight import integrate_throttle_free, update_free_flight
 from physics.wave_system import wave_params
 from physics.homing import compute_lead_point
 from physics.missile_ai import SmartMissileTracker
+from physics.player_missile_guidance import predict_player_aim
 from physics.intercept import solve_intercept
 from physics.projectile import integrate_projectile, simulate_trajectory, velocity_from_angle
 from prediction.kalman import TargetKalmanFilter
@@ -758,7 +759,9 @@ class SimulationEngine:
         return ranked[0]
 
     def _get_locked_missile_target(self, proj: ProjectileEntity) -> Optional[TargetEntity]:
-        """발사 시 고정된 locked_target_id만 추적. 비행 중 재조준·타겟 변경 없음."""
+        """적 미사일은 항상 플레이어만 추적."""
+        if proj.homing and not proj.from_player and self.config.player_control:
+            return self.targets.get(PLAYER_ID)
         tid = proj.locked_target_id or proj.target_id
         return self.targets.get(tid)
 
@@ -956,7 +959,10 @@ class SimulationEngine:
         return result
 
     def launch(self, target_id: Optional[str] = None) -> bool:
-        tid = target_id or self.selected_target_id
+        if self.config.player_control and PLAYER_ID in self.targets:
+            tid = PLAYER_ID
+        else:
+            tid = target_id or self.selected_target_id
         target = self.targets.get(tid)
         if not target:
             return False
@@ -994,33 +1000,31 @@ class SimulationEngine:
         self.hit = False
         return True
 
-    def _smart_aim_point(
-        self, track_target: TargetEntity, missile_pos: np.ndarray, lock_strength: float = 1.0
+    def _player_lstm_hint(self, player: TargetEntity) -> Optional[np.ndarray]:
+        if not self.config.use_lstm:
+            return None
+        try:
+            lstm = self.get_lstm()
+            return lstm.predict_next(player.position.copy())
+        except Exception:
+            return None
+
+    def _enemy_missile_aim_point(
+        self, player: TargetEntity, missile_pos: np.ndarray, missile_speed: float
     ) -> np.ndarray:
-        kpos, kvel = None, None
-        if self.config.use_kalman:
-            kpos, kvel = track_target.kalman.get_state()
-        lstm_pos = None
-        if (
-            track_target.is_player
-            and track_target.id == self.selected_target_id
-            and self.lstm_prediction is not None
-            and np.any(self.future_prediction)
-        ):
-            lstm_pos = self.future_prediction
-        if kpos is not None and kvel is not None:
-            pos = kpos
-            vel = kvel
-        else:
-            pos = track_target.position
-            vel = track_target.velocity
-        dist = float(np.linalg.norm(pos - missile_pos))
+        """적 미사일 조준점 — 플레이어 칼만 + 입력 예측."""
         diff = max(0.5, min(2.0, self.config.ai_difficulty))
-        t_lead = min(2.2, (dist / max(self.config.muzzle_velocity, 100.0)) * (1.05 + 0.08 * diff))
-        predicted = pos + vel * t_lead
-        if lstm_pos is not None:
-            predicted = 0.78 * predicted + 0.22 * lstm_pos
-        return predicted.astype(float)
+        lstm_hint = self._player_lstm_hint(player)
+        return predict_player_aim(
+            player.kalman,
+            missile_pos,
+            missile_speed,
+            self._player_strafe,
+            self._player_forward,
+            self._player_boost,
+            difficulty=diff,
+            lstm_hint=lstm_hint,
+        )
 
     def _handle_target_hit(self, target: TargetEntity, proj_id: str) -> None:
         self.last_hit_target_id = target.id
@@ -1094,12 +1098,32 @@ class SimulationEngine:
                 proj.altitude += (tgt_alt - proj.altitude) * min(1.0, sub_dt * 2.2)
 
                 if proj.homing:
-                    lead = compute_lead_point(
-                        proj.position, proj.speed, tgt_pos, tgt_vel, lead_factor=1.05
-                    )
-                    aim = lead * 0.55 + self._smart_aim_point(
-                        track_target, proj.position, lock_strength
-                    ) * 0.45
+                    if (
+                        not proj.from_player
+                        and self.config.player_control
+                        and track_target.is_player
+                    ):
+                        kpos, kvel = track_target.kalman.get_state()
+                        aim = self._enemy_missile_aim_point(
+                            track_target, proj.position, proj.speed
+                        )
+                        aim = aim * 0.7 + proj.tracker.predict_target(
+                            tgt_pos,
+                            tgt_vel,
+                            proj.position,
+                            proj.speed,
+                            np.array([self._player_strafe, self._player_forward]),
+                            self._player_boost,
+                            kalman_pos=kpos,
+                            kalman_vel=kvel,
+                            lstm_pos=self._player_lstm_hint(track_target),
+                            difficulty=diff,
+                        ) * 0.3
+                    else:
+                        lead = compute_lead_point(
+                            proj.position, proj.speed, tgt_pos, tgt_vel, lead_factor=1.05
+                        )
+                        aim = lead
                     if float(np.linalg.norm(aim - proj.position)) < 8.0:
                         aim = tgt_pos + tgt_vel * 0.06
                     proj.velocity, proj.position, _ = proj.tracker.guide_missile(
