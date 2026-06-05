@@ -13,6 +13,7 @@ import { createSkyEnvironment, altitudeToY } from '../rendering/skyEnvironment';
 import { createWorldBounds, distanceToArenaBoundary, ARENA } from '../rendering/worldBounds';
 
 import { createFlightGround } from '../rendering/flightGround';
+import { disposeTerrainTextures } from '../rendering/terrainTextures';
 
 import { createFlightEffects } from '../rendering/flightEffects';
 
@@ -796,6 +797,7 @@ export default function Scene3D() {
       worldBounds.dispose();
 
       flightGround.dispose();
+      disposeTerrainTextures();
 
       sky.dispose();
 
