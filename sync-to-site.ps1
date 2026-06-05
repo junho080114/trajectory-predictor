@@ -1,4 +1,4 @@
-# 로컬 수정 -> GitHub push -> Render 자동 배포
+# Local edit -> GitHub push -> Render auto deploy
 param(
     [string]$Message = "",
     [switch]$Watch,
@@ -6,6 +6,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
+
 $Root = $PSScriptRoot
 $env:Path = "C:\Program Files\Git\bin;" + $env:Path
 
@@ -40,23 +43,23 @@ function Sync-Once {
     }
 
     if (-not $CommitMessage) {
-        $CommitMessage = "sync: 사이트 자동 반영 $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+        $CommitMessage = "sync: auto deploy $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
     }
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] 커밋 + push 중..." -ForegroundColor Cyan
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Commit + push..." -ForegroundColor Cyan
     git add -A
     git reset -- backend/venv frontend/node_modules frontend/dist 2>$null
     git commit -m $CommitMessage
     git push origin main
 
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] GitHub push 완료 — Render 자동 배포 (10~20분)" -ForegroundColor Green
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Done. Render will redeploy in 10-20 min." -ForegroundColor Green
     return $true
 }
 
 function Start-WatchMode {
-    Write-Host "=== 사이트 자동 동기화 (Watch) ===" -ForegroundColor Cyan
-    Write-Host "Cursor에서 저장(Ctrl+S)하면 자동 push -> Render 배포" -ForegroundColor Gray
-    Write-Host "대기: 저장 후 ${DebounceSec}초 | 종료: Ctrl+C" -ForegroundColor Yellow
+    Write-Host "=== Site Auto Sync (Watch) ===" -ForegroundColor Cyan
+    Write-Host "Save files in Cursor (Ctrl+S) -> auto push -> Render deploy" -ForegroundColor Gray
+    Write-Host "Wait ${DebounceSec}s after save | Close this window to stop" -ForegroundColor Yellow
     Write-Host ""
 
     $dirtySince = $null
@@ -71,7 +74,7 @@ function Start-WatchMode {
 
         if (-not $dirtySince) {
             $dirtySince = Get-Date
-            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] 변경 감지 — ${DebounceSec}초 후 push..." -ForegroundColor Yellow
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Change detected. Push in ${DebounceSec}s..." -ForegroundColor Yellow
             continue
         }
 
@@ -86,10 +89,10 @@ function Start-WatchMode {
 if ($Watch) {
     Start-WatchMode
 } else {
-    Write-Host "=== 사이트에 반영 (1회) ===" -ForegroundColor Cyan
+    Write-Host "=== Sync to site (once) ===" -ForegroundColor Cyan
     if (Sync-Once -CommitMessage $Message) {
-        Write-Host "Render 대시보드: Deploying -> Live 확인" -ForegroundColor Cyan
+        Write-Host "Check Render dashboard: Deploying -> Live" -ForegroundColor Cyan
     } else {
-        Write-Host "반영할 변경이 없습니다." -ForegroundColor Gray
+        Write-Host "No changes to sync." -ForegroundColor Gray
     }
 }
