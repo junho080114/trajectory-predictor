@@ -31,11 +31,11 @@ export function createWorldBounds(_width, _height) {
   const ry = ARENA.radius * ALT_TO_WORLD;
 
   const shell = new THREE.Mesh(
-    new THREE.SphereGeometry(ARENA.radius, 20, 14),
+    new THREE.SphereGeometry(ARENA.radius, 18, 12),
     new THREE.MeshBasicMaterial({
-      color: 0xff4455,
+      color: 0xff5533,
       transparent: true,
-      opacity: 0.07,
+      opacity: 0.05,
       side: THREE.BackSide,
       depthWrite: false,
     })
@@ -45,8 +45,8 @@ export function createWorldBounds(_width, _height) {
   group.add(shell);
 
   const wire = new THREE.LineSegments(
-    new THREE.WireframeGeometry(new THREE.SphereGeometry(ARENA.radius, 14, 10)),
-    new THREE.LineBasicMaterial({ color: 0xff7744, transparent: true, opacity: 0.55 })
+    new THREE.WireframeGeometry(new THREE.SphereGeometry(ARENA.radius, 12, 8)),
+    new THREE.LineBasicMaterial({ color: 0xff9955, transparent: true, opacity: 0.42 })
   );
   wire.scale.set(1, ry / ARENA.radius, 1);
   wire.position.set(ARENA.cx, wy, ARENA.cz);
