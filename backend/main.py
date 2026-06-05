@@ -3,10 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from models.schemas import LaunchRequest, LaunchResponse, SimulationConfig
 from simulation_engine import SimulationEngine
@@ -225,3 +228,22 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         if websocket in ws_clients:
             ws_clients.remove(websocket)
+
+
+# Render / production: serve Vite build from same host (API + game UI)
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _FRONTEND_DIST.is_dir():
+    _assets = _FRONTEND_DIST / "assets"
+    if _assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=_assets), name="frontend-assets")
+
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(_FRONTEND_DIST / "index.html")
+
+    @app.get("/{spa_path:path}")
+    async def serve_spa(spa_path: str):
+        candidate = _FRONTEND_DIST / spa_path
+        if spa_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(_FRONTEND_DIST / "index.html")

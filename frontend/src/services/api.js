@@ -1,7 +1,19 @@
 import axios from 'axios';
 
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws';
+function resolveApiBase() {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.DEV) return 'http://127.0.0.1:8000';
+  return '';
+}
+
+function resolveWsUrl() {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  if (import.meta.env.DEV) return 'ws://127.0.0.1:8000/ws';
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${window.location.host}/ws`;
+}
+
+export const API_BASE = resolveApiBase();
 
 const client = axios.create({
   baseURL: API_BASE,
@@ -41,7 +53,7 @@ export async function selectTarget(targetId) {
 }
 
 export function createWebSocket(onMessage, onOpen, onClose) {
-  const ws = new WebSocket(WS_URL);
+  const ws = new WebSocket(resolveWsUrl());
   ws.onopen = () => {
     if (onOpen) onOpen();
   };
