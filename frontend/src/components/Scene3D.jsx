@@ -450,7 +450,7 @@ export default function Scene3D() {
     const tick = (now) => {
       if (document.hidden) {
         clockRef.current.last = now;
-        animRef.current = requestAnimationFrame(tick);
+        rafId = requestAnimationFrame(tick);
         return;
       }
 
