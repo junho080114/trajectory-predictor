@@ -148,6 +148,15 @@ npm run dev
 
 
 
+## 로컬 수정 → 사이트 자동 반영
+
+| 방법 | 실행 |
+|------|------|
+| **자동 (권장)** | `start-sync-watch.bat` 실행 후 Cursor에서 작업 — 저장하면 자동 push |
+| **수동 1회** | `sync-to-site.bat` — 지금 변경분만 push |
+
+흐름: **저장 → GitHub push → Render 자동 배포 (10~20분)**
+
 ## Render(클라우드) 배포
 
 자세한 내용: **`RENDER_배포.md`**
