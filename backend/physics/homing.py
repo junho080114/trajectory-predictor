@@ -58,8 +58,9 @@ def steer_toward(
     desired = aim_point - position
     dist = float(np.linalg.norm(desired))
     if dist < 1e-6:
-        spd = max(float(np.linalg.norm(velocity)), speed * 0.5)
-        return velocity if float(np.linalg.norm(velocity)) > 1e-3 else desired_dir * speed
+        if float(np.linalg.norm(velocity)) > 1e-3:
+            return velocity
+        return np.array([1.0, 0.0], dtype=float) * speed
     desired_dir = desired / dist
     current_speed = float(np.linalg.norm(velocity))
     if current_speed < 1e-6:
@@ -94,7 +95,15 @@ def apply_homing_steering(
     pn_blend: float = 0.42,
 ) -> np.ndarray:
     """선행 조준점 + 비례항법(PN) 방향을 속도 벡터로 합성."""
+    rel = target_pos - missile_pos
+    dist = float(np.linalg.norm(rel))
     steered = steer_toward(missile_pos, missile_vel, aim_point, speed, max_turn_rate, dt)
+
+    # 근거리·측면 접근 시 PN 비활성 → 뱅글뱅글 방지
+    if dist < 200.0:
+        sn = float(np.linalg.norm(steered))
+        return steered if sn > 1e-6 else rel / max(dist, 1e-6) * speed
+
     pn_dir = proportional_navigation(
         missile_pos, missile_vel, target_pos, target_vel, nav_gain=pn_gain, dt=dt
     )
@@ -102,7 +111,7 @@ def apply_homing_steering(
     if sn < 1e-6:
         return pn_dir * speed
     cur = steered / sn
-    blend = float(np.clip(pn_blend, 0.0, 0.85))
+    blend = float(np.clip(pn_blend, 0.0, 0.35))
     mixed = (1.0 - blend) * cur + blend * pn_dir
     mn = float(np.linalg.norm(mixed))
     if mn > 1e-6:

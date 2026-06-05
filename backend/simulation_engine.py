@@ -1107,29 +1107,20 @@ class SimulationEngine:
                         and self.config.player_control
                         and track_target.is_player
                     ):
-                        kpos, kvel = track_target.kalman.get_state()
                         aim = self._enemy_missile_aim_point(
                             track_target, proj.position, proj.speed
                         )
-                        aim = aim * 0.7 + proj.tracker.predict_target(
-                            tgt_pos,
-                            tgt_vel,
-                            proj.position,
-                            proj.speed,
-                            np.array([self._player_strafe, self._player_forward]),
-                            self._player_boost,
-                            kalman_pos=kpos,
-                            kalman_vel=kvel,
-                            lstm_pos=self._player_lstm_hint(track_target),
-                            difficulty=diff,
-                        ) * 0.3
+                        aim = proj.tracker.smooth_aim(
+                            aim, proj.position, track_target.position
+                        )
                     else:
                         lead = compute_lead_point(
                             proj.position, proj.speed, tgt_pos, tgt_vel, lead_factor=1.05
                         )
                         aim = lead
-                    if float(np.linalg.norm(aim - proj.position)) < 8.0:
-                        aim = tgt_pos + tgt_vel * 0.06
+                    to_tgt = tgt_pos - proj.position
+                    if float(np.linalg.norm(to_tgt)) < 45.0:
+                        aim = tgt_pos + tgt_vel * 0.04
                     proj.velocity, proj.position, _ = proj.tracker.guide_missile(
                         proj.position,
                         proj.velocity,

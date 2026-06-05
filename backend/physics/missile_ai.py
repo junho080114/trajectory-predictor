@@ -17,6 +17,7 @@ class SmartMissileTracker:
     def __init__(self, history_len: int = 10) -> None:
         self._vel_history: Deque[np.ndarray] = deque(maxlen=history_len)
         self._pos_history: Deque[np.ndarray] = deque(maxlen=history_len)
+        self._last_aim: Optional[np.ndarray] = None
 
     def record_target(self, position: np.ndarray, velocity: np.ndarray) -> None:
         self._pos_history.append(position.astype(float).copy())
@@ -26,6 +27,32 @@ class SmartMissileTracker:
         if len(self._vel_history) < 2:
             return np.zeros(2, dtype=float)
         return (self._vel_history[-1] - self._vel_history[-2]) * 60.0
+
+    def _clamp_aim_ahead(
+        self, aim: np.ndarray, missile_pos: np.ndarray, target_pos: np.ndarray
+    ) -> np.ndarray:
+        """조준점이 미사일 뒤쪽으로 가면 타겟 방향으로 보정."""
+        to_tgt = target_pos - missile_pos
+        to_aim = aim - missile_pos
+        tgt_d = float(np.linalg.norm(to_tgt))
+        aim_d = float(np.linalg.norm(to_aim))
+        if tgt_d < 1e-6 or aim_d < 1e-6:
+            return target_pos.astype(float).copy()
+        if float(np.dot(to_aim / aim_d, to_tgt / tgt_d)) < 0.12:
+            lead = target_pos + (target_pos - missile_pos) * 0.08
+            return lead.astype(float)
+        return aim.astype(float)
+
+    def smooth_aim(
+        self, aim: np.ndarray, missile_pos: np.ndarray, target_pos: np.ndarray
+    ) -> np.ndarray:
+        aim = self._clamp_aim_ahead(aim, missile_pos, target_pos)
+        if self._last_aim is None:
+            self._last_aim = aim.copy()
+            return aim
+        smoothed = self._last_aim * 0.55 + aim * 0.45
+        self._last_aim = smoothed.copy()
+        return smoothed.astype(float)
 
     def predict_target(
         self,
@@ -55,13 +82,13 @@ class SmartMissileTracker:
         acc = 0.55 * acc_hist + 0.45 * inp_acc
 
         dist = float(np.linalg.norm(pos - missile_pos))
-        t_lead = (dist / max(missile_speed, 90.0)) * (0.92 + 0.14 * difficulty)
-        t_lead = min(t_lead, 2.6)
+        t_lead = (dist / max(missile_speed, 90.0)) * (0.88 + 0.12 * difficulty)
+        t_lead = min(t_lead, 2.2)
 
-        predicted = pos + vel * t_lead + 0.48 * acc * (t_lead**2)
+        predicted = pos + vel * t_lead + 0.38 * acc * (t_lead**2)
         if lstm_pos is not None:
-            predicted = 0.72 * predicted + 0.28 * lstm_pos
-        return predicted.astype(float)
+            predicted = 0.75 * predicted + 0.25 * lstm_pos
+        return self.smooth_aim(predicted, missile_pos, pos)
 
     def guide_missile(
         self,
@@ -78,22 +105,30 @@ class SmartMissileTracker:
     ) -> tuple[np.ndarray, np.ndarray, float]:
         rel = target_pos - missile_pos
         dist = float(np.linalg.norm(rel))
-        speed = base_speed * (1.0 + 0.22 * difficulty)
-        turn_rate = base_turn_rate * (1.0 + 2.2 * difficulty)
+        speed = base_speed * (1.0 + 0.18 * difficulty)
+        turn_rate = base_turn_rate * (1.0 + 1.4 * difficulty)
 
-        if dist < 280:
-            turn_rate *= 1.0 + (280 - dist) / 120.0
-        if dist < 120:
-            speed *= 1.0 + 0.25 * difficulty
-            turn_rate *= 1.8
+        vel_spd = float(np.linalg.norm(missile_vel))
+        if vel_spd > 1e-6 and dist > 1e-6:
+            closing = float(np.dot(missile_vel / vel_spd, rel / dist))
+            # 측면으로 도는 중(종추 속도 낮음) → 직접 추격
+            if dist < 240.0 and closing < 0.2:
+                direct = rel / dist
+                spd = speed * 1.05
+                travel = min(spd * dt, max(dist * 0.95, 2.0))
+                return direct * spd, missile_pos + direct * travel, spd
 
-        if dist < 55:
+        if dist < 90:
             direct = rel / max(dist, 1e-6)
-            spd = speed * 1.2
+            spd = speed * 1.1
             travel = min(spd * dt, max(dist * 0.98, 2.0))
             return direct * spd, missile_pos + direct * travel, spd
 
-        pn_blend = 0.38 + min(0.22, 120.0 / max(dist, 40.0))
+        if dist < 320:
+            turn_rate = min(turn_rate, base_turn_rate * 2.2)
+
+        aim_point = self.smooth_aim(aim_point, missile_pos, target_pos)
+        pn_blend = 0.12 + min(0.15, 80.0 / max(dist, 60.0))
         vel = apply_homing_steering(
             missile_pos,
             missile_vel,
@@ -103,7 +138,7 @@ class SmartMissileTracker:
             speed,
             turn_rate,
             dt,
-            pn_gain=pn_gain * (0.9 + 0.2 * difficulty),
+            pn_gain=pn_gain * (0.85 + 0.15 * difficulty),
             pn_blend=pn_blend,
         )
         pos = missile_pos + vel * dt
