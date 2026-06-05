@@ -563,6 +563,8 @@ export default function Scene3D() {
           );
 
           flightGround.setAltitude(pAlt);
+          const wave = st.game?.wave ?? 1;
+          flightGround.setWave(wave);
 
           flightGround.scroll(px, pz);
 

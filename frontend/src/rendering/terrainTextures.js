@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ARENA } from './worldBounds';
 
-let terrainMapCache = null;
+const terrainMapCache = new Map();
 let cloudTexCache = null;
 
 function hash2(x, y) {
@@ -14,12 +14,12 @@ function smoothNoise(x, y) {
   const iy = Math.floor(y);
   const fx = x - ix;
   const fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
   const a = hash2(ix, iy);
   const b = hash2(ix + 1, iy);
   const c = hash2(ix, iy + 1);
   const d = hash2(ix + 1, iy + 1);
-  const ux = fx * fx * (3 - 2 * fx);
-  const uy = fy * fy * (3 - 2 * fy);
   return (
     a * (1 - ux) * (1 - uy) +
     b * ux * (1 - uy) +
@@ -34,15 +34,27 @@ function fbm(x, y, oct = 4) {
   let freq = 1;
   for (let i = 0; i < oct; i++) {
     v += amp * smoothNoise(x * freq, y * freq);
-    freq *= 2.1;
-    amp *= 0.48;
+    freq *= 2.05;
+    amp *= 0.5;
   }
   return v;
 }
 
-/** 512px 지형 알베도 — 1회 생성, GPU 업로드만 */
-export function getTerrainMapTexture() {
-  if (terrainMapCache) return terrainMapCache;
+export function sampleTerrainHeight(x, z, waveSeed = 1) {
+  const w = waveSeed * 0.31;
+  return (
+    Math.sin(x * (0.008 + w * 0.001)) * 7 +
+    Math.cos(z * (0.009 - w * 0.0008)) * 6 +
+    Math.sin((x + z) * (0.006 + w * 0.0012)) * 4 +
+    Math.sin(x * (0.022 + w * 0.002) + z * 0.019) * 2 +
+    Math.cos(x * (0.035 + w * 0.0015)) * Math.sin(z * (0.032 - w * 0.001)) * 1.5
+  );
+}
+
+/** 웨이브마다 다른 지형 텍스처 (캐시) */
+export function getTerrainMapTexture(waveSeed = 1) {
+  const key = waveSeed | 0;
+  if (terrainMapCache.has(key)) return terrainMapCache.get(key);
 
   const size = 512;
   const c = document.createElement('canvas');
@@ -55,51 +67,41 @@ export function getTerrainMapTexture() {
   const worldSize = ARENA.radius * 2.2;
   const cx = ARENA.cx;
   const cz = ARENA.cz;
+  const phase = key * 1.73;
 
   for (let py = 0; py < size; py++) {
     for (let px = 0; px < size; px++) {
       const wx = (px / size - 0.5) * worldSize + cx;
       const wz = (py / size - 0.5) * worldSize + cz;
 
-      const n1 = fbm(wx * 0.012, wz * 0.012, 5);
-      const n2 = fbm(wx * 0.045 + 40, wz * 0.038, 3);
-      const ridge = Math.abs(Math.sin(wx * 0.006) * Math.cos(wz * 0.007));
-      const moist = fbm(wx * 0.02 - 20, wz * 0.02 + 10, 2);
+      const n1 = fbm(wx * 0.011 + phase, wz * 0.011 - phase * 0.6, 4);
+      const n2 = fbm(wx * 0.038 + 30 + phase, wz * 0.034, 3);
+      const moist = fbm(wx * 0.018 - phase, wz * 0.02 + 12, 2);
 
-      let r = 28 + n1 * 55 + ridge * 22;
-      let g = 52 + n1 * 72 + moist * 35;
-      let b = 22 + n1 * 28 + n2 * 18;
+      let r = 34 + n1 * 48 + moist * 12;
+      let g = 58 + n1 * 62 + moist * 28;
+      let b = 26 + n1 * 22 + n2 * 10;
 
-      if (n2 > 0.62) {
-        r = 72 + n2 * 40;
-        g = 68 + n2 * 35;
-        b = 52 + n2 * 28;
-      }
-      if (n1 > 0.72) {
-        r = 88 + n1 * 30;
-        g = 82 + n1 * 25;
-        b = 70 + n1 * 20;
+      if (n2 > 0.58) {
+        r = 62 + n2 * 28;
+        g = 58 + n2 * 22;
+        b = 44 + n2 * 16;
       }
 
-      const dx = wx - cx;
-      const dz = wz - cz;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      const gridX = Math.abs((wx % 80) - 40) < 1.2;
-      const gridZ = Math.abs((wz % 80) - 40) < 1.2;
+      const gridX = Math.abs((wx % 100) - 50) < 0.8;
+      const gridZ = Math.abs((wz % 100) - 50) < 0.8;
       if (gridX || gridZ) {
-        r = r * 0.75 + 70;
-        g = g * 0.75 + 110;
-        b = b * 0.75 + 130;
+        r = r * 0.88 + 48;
+        g = g * 0.88 + 82;
+        b = b * 0.88 + 96;
       }
 
-      const ringW = 5;
-      const ringInner = ARENA.radius * 0.9;
-      const ringOuter = ARENA.radius;
-      if (dist > ringInner && dist < ringOuter) {
-        const t = (dist - ringInner) / (ringOuter - ringInner);
-        r = 255 * (0.6 + t * 0.4);
-        g = 110 + t * 40;
-        b = 20;
+      const dist = Math.hypot(wx - cx, wz - cz);
+      if (dist > ARENA.radius * 0.9 && dist < ARENA.radius) {
+        const t = (dist - ARENA.radius * 0.9) / (ARENA.radius * 0.1);
+        r = 220 * t + r * (1 - t);
+        g = 95 * t + g * (1 - t);
+        b = 28 * t + b * (1 - t);
       }
 
       const i = (py * size + px) * 4;
@@ -114,13 +116,13 @@ export function getTerrainMapTexture() {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.generateMipmaps = true;
-  terrainMapCache = tex;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  terrainMapCache.set(key, tex);
   return tex;
 }
 
-/** 구름 스프라이트 공용 소프트 텍스처 */
 export function getCloudSpriteTexture() {
   if (cloudTexCache) return cloudTexCache;
   const c = document.createElement('canvas');
@@ -128,8 +130,8 @@ export function getCloudSpriteTexture() {
   c.height = 64;
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
-  g.addColorStop(0, 'rgba(255,255,255,0.95)');
-  g.addColorStop(0.45, 'rgba(255,255,255,0.35)');
+  g.addColorStop(0, 'rgba(255,255,255,0.9)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.25)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
@@ -140,8 +142,8 @@ export function getCloudSpriteTexture() {
 }
 
 export function disposeTerrainTextures() {
-  terrainMapCache?.dispose();
+  terrainMapCache.forEach((t) => t.dispose());
+  terrainMapCache.clear();
   cloudTexCache?.dispose();
-  terrainMapCache = null;
   cloudTexCache = null;
 }

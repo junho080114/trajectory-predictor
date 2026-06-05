@@ -61,6 +61,7 @@ async def simulation_loop() -> None:
 async def lifespan(app: FastAPI):
     engine.config.player_control = True
     engine.config.ai_targets = True
+    engine.config.use_kalman = True
     engine.restart()
     engine.ensure_drones()
     task = asyncio.create_task(simulation_loop())
