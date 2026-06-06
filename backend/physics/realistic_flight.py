@@ -67,7 +67,7 @@ def update_free_flight(
     """
     tf = speed_turn_factor(speed, max_mps)
 
-    roll_rate = roll_input * ROLL_RATE_MAX * tf
+    roll_rate = -roll_input * ROLL_RATE_MAX * tf
     bank += roll_rate * dt
     bank -= bank * BANK_DAMP * dt
     bank = float(max(-BANK_MAX, min(BANK_MAX, bank)))

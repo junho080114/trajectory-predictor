@@ -211,7 +211,7 @@ class SimulationEngine:
         """자유 비행: 스로틀·뱅크·마우스 각속도 조종."""
         del aim_x, aim_y, yaw_input, pitch_input, look_heading, look_pitch
         clamp = lambda v: float(max(-1.0, min(1.0, v)))
-        self._player_strafe = -clamp(
+        self._player_strafe = clamp(
             move_strafe if abs(move_strafe) > 1e-6 else move_x
         )
         fwd = move_forward if abs(move_forward) > 1e-6 else move_y
