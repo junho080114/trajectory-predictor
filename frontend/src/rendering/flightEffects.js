@@ -175,23 +175,32 @@ export function createFlightEffects(scene) {
             }
           }
           exhaustAcc += dt;
-          if (spd > 120 && exhaustAcc > 0.08) {
+          if (spd > 100 && exhaustAcc > 0.06) {
             exhaustAcc = 0;
             tmp.set(s.x - Math.sin(yaw) * 12, s.y - 1, s.z - Math.cos(yaw) * 12);
             spawnParticle(
               pool,
               tmp,
               new THREE.Vector3(-Math.sin(yaw) * 22, 1, -Math.cos(yaw) * 22),
-              0.2,
+              0.22,
               'flame'
             );
             spawnParticle(
               pool,
               tmp,
               new THREE.Vector3(-Math.sin(yaw) * 10, 2, -Math.cos(yaw) * 10),
-              0.45,
+              0.5,
               'smoke'
             );
+            if (spd > 280) {
+              spawnParticle(
+                pool,
+                tmp,
+                new THREE.Vector3(-Math.sin(yaw) * 6, 0, -Math.cos(yaw) * 6),
+                0.9,
+                'smoke'
+              );
+            }
           }
         }
       }

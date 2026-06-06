@@ -13,8 +13,8 @@ PITCH_RATE_MAX = 2.1
 ROLL_RATE_MAX = 2.4
 BANK_TO_YAW = 1.75
 BANK_DAMP = 3.2
-SPEED_ACCEL = 1.8
-SPEED_DECEL = 2.4
+SPEED_ACCEL = 1.45
+SPEED_DECEL = 2.0
 MIN_SPEED_RATIO = 0.12
 THROTTLE_IDLE = 0.0
 COAST_BRAKE = 0.62
@@ -28,11 +28,11 @@ def integrate_throttle_free(
 ) -> float:
     t = current
     if throttle_cmd > 0.05:
-        t += throttle_cmd * 0.62 * dt
+        t += throttle_cmd * 0.48 * dt
     elif throttle_cmd < -0.05:
-        t += throttle_cmd * 0.95 * dt
+        t += throttle_cmd * 0.72 * dt
     else:
-        t += (THROTTLE_IDLE - t) * 0.55 * dt
+        t += (THROTTLE_IDLE - t) * 0.42 * dt
     if boost:
         t = min(1.12, t + 0.65 * dt)
     return float(max(0.0, min(1.12, t)))

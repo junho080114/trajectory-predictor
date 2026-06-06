@@ -63,7 +63,7 @@ export default function CockpitHUD() {
 
       {/* 인공 수평선 */}
       <div
-        className="absolute left-1/2 top-1/2 w-[120%] h-px bg-green-400/90 -translate-x-1/2 transition-transform duration-75"
+        className="absolute left-1/2 top-1/2 w-[120%] h-px bg-green-400/90 -translate-x-1/2 transition-transform duration-150 ease-out"
         style={{
           transform: `translate(-50%, calc(-50% + ${horizonPitch}px)) rotate(${roll}deg)`,
         }}

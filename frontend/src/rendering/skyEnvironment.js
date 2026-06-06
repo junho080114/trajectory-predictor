@@ -71,8 +71,8 @@ export function createSkyEnvironment(scene) {
   }
 
   scene.add(root);
-  scene.background = new THREE.Color(0x5a98c8);
-  scene.fog = new THREE.FogExp2(0x8eb4d4, 0.0001);
+  scene.background = new THREE.Color(0x4a8ab8);
+  scene.fog = new THREE.FogExp2(0x7aa8cc, 0.000085);
 
   let lastCell = -9999;
 

@@ -470,7 +470,9 @@ export default function Scene3D() {
 
 
 
-      const st = renderRef.current;
+      const stRaw = renderRef.current;
+      if (stRaw) displayInterp.feed(stRaw);
+      const st = displayInterp.getView(now) ?? stRaw;
 
       if (st) {
 
@@ -589,6 +591,8 @@ export default function Scene3D() {
 
             pitch: player.pitch,
 
+            bank: player.bank,
+
           }) || {
 
             x: player.position.x,
@@ -600,6 +604,8 @@ export default function Scene3D() {
             yaw: player.heading ?? 0,
 
             pitch: player.pitch ?? 0,
+
+            bank: player.bank ?? 0,
 
           };
 
