@@ -34,9 +34,8 @@ async def simulation_loop() -> None:
 
         loop_start = asyncio.get_event_loop().time()
         try:
-            if engine.config.paused and engine.config.player_control:
-                engine.config.paused = False
-            engine.step(SIM_DT)
+            if not engine.config.paused:
+                engine.step(SIM_DT)
         except Exception as exc:
             print(f"[sim] step error: {exc}")
         accum += SIM_DT
@@ -211,7 +210,7 @@ async def websocket_endpoint(websocket: WebSocket):
             elif msg_type == "restart":
                 engine.restart()
             elif msg_type == "pause":
-                engine.config.paused = bool(payload.get("paused", False))
+                engine.update_config({"paused": bool(payload.get("paused", False))})
             elif msg_type == "input":
                 engine.apply_player_input(
                     move_x=float(payload.get("move_x", 0)),
