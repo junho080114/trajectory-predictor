@@ -307,12 +307,12 @@ export default function Scene3D() {
 
       const sens = 0.0034;
       if (st.cameraMode === 'orbit') {
-        st.addOrbitYaw(e.movementX * sens * 1.2);
-        st.addOrbitPitch(e.movementY * sens);
+        st.addOrbitYaw(-e.movementX * sens * 1.2);
+        st.addOrbitPitch(-e.movementY * sens);
       } else {
-        st.addViewYaw(e.movementX * sens);
-        st.addViewPitch(e.movementY * sens);
-        st.addControlRates(e.movementX * sens * 0.4, e.movementY * sens * 0.4);
+        // 마우스 이동 방향 = 시야 이동 (기체 선회와 분리)
+        st.addViewYaw(-e.movementX * sens);
+        st.addViewPitch(-e.movementY * sens);
       }
 
     };

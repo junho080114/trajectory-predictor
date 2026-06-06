@@ -226,8 +226,9 @@ class SimulationEngine:
             self._player_yaw_input = clamp(yaw_rate)
             self._player_pitch_input = clamp(pitch_rate)
         else:
-            self._player_yaw_input = clamp(self._player_view_yaw * 1.15)
-            self._player_pitch_input = clamp(self._player_view_pitch * 1.15)
+            # view_yaw/pitch = 시야·조준만 (마우스), 기체 선회는 A/D 뱅크
+            self._player_yaw_input = 0.0
+            self._player_pitch_input = 0.0
 
     def _spawn_targets(self) -> None:
         self.targets.clear()

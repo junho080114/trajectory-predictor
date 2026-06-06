@@ -223,6 +223,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     boost=bool(payload.get("boost", False)),
                     view_yaw=float(payload.get("view_yaw", 0)),
                     view_pitch=float(payload.get("view_pitch", 0)),
+                    yaw_rate=float(payload.get("yaw_rate", 0)),
+                    pitch_rate=float(payload.get("pitch_rate", 0)),
                 )
             elif msg_type == "fire":
                 result = engine.player_try_fire()
