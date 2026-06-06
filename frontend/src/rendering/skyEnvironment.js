@@ -93,12 +93,11 @@ export function createSkyEnvironment(scene) {
     root,
     follow(centerX, centerZ, altM = 4500, heading = 0, _vx = 0, _vz = 0, bounds = null) {
       const altY = altitudeToY(altM);
-      const altNorm = Math.max(0, Math.min(1, (altM - 4000) / 1000));
-      root.position.set(centerX, altY * 0.04, centerZ);
-      root.rotation.y = heading * 0.05;
+      root.position.set(centerX, altY * 0.06, centerZ);
+      root.rotation.y = heading * 0.06;
 
-      cloudLayers[0].position.set(centerX, 48 + altY * 0.08, centerZ);
-      cloudLayers[1].position.set(centerX, 88 + altY * 0.12, centerZ);
+      cloudLayers[0].position.set(centerX, 48, centerZ);
+      cloudLayers[1].position.set(centerX, 88, centerZ);
 
       const cell = Math.floor(centerX / 400) + Math.floor(centerZ / 400) * 1000;
       if (cell !== lastCell) {
@@ -124,11 +123,11 @@ export function createSkyEnvironment(scene) {
       const cx = bounds?.centerX ?? ARENA.cx;
       scene.background.setHSL(
         0.55 + ((centerX - cx) / span) * 0.025,
-        0.32 + altNorm * 0.12,
-        0.54 + altNorm * 0.18
+        0.38,
+        0.52 + Math.min(0.14, altY / 400)
       );
-      scene.fog.density = Math.max(0.00004, 0.00011 - altNorm * 0.00006) + edgeFactor * 0.00003;
-      scene.fog.color.setHSL(0.58, 0.22 + altNorm * 0.1, 0.7 + altNorm * 0.12);
+      scene.fog.density = 0.000085 + edgeFactor * 0.000035;
+      scene.fog.color.setHSL(0.58, 0.28, 0.72);
     },
     dispose() {
       scene.remove(root);

@@ -306,19 +306,17 @@ export function createFlightGround() {
   return {
     group,
     setWave,
-    /** 지형은 고정 — 고도 변화는 기체 Y로만 표현 */
-    setAltitude() {},
+    setAltitude(altM) {
+      group.position.y = altitudeToY(altM) - 10;
+    },
     scroll(px, pz) {
       group.position.x = px;
       group.position.z = pz;
     },
     update(px, pz, altM, wave) {
       setWave(wave);
+      setAltitude(altM);
       scroll(px, pz);
-      const altY = altitudeToY(altM);
-      const haze = Math.max(0.12, 1 - (altY - 80) / 120);
-      world.terrainEntry.mat.opacity = 0.92 + haze * 0.08;
-      arenaRing.position.y = 2 + Math.sin(Date.now() * 0.001) * 0.2;
     },
     dispose() {
       disposeWorld(world);

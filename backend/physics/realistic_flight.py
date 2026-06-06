@@ -13,12 +13,12 @@ PITCH_RATE_MAX = 2.1
 ROLL_RATE_MAX = 2.4
 BANK_TO_YAW = 1.75
 BANK_DAMP = 3.2
-SPEED_ACCEL = 1.45
-SPEED_DECEL = 2.0
+SPEED_ACCEL = 1.8
+SPEED_DECEL = 2.4
 MIN_SPEED_RATIO = 0.12
 THROTTLE_IDLE = 0.0
 COAST_BRAKE = 0.62
-VERTICAL_PITCH_RATE = 1.55
+VERTICAL_PITCH_RATE = 1.15
 CLIMB_FROM_PITCH = 0.95
 DRAG_COAST = 0.45
 
@@ -28,11 +28,11 @@ def integrate_throttle_free(
 ) -> float:
     t = current
     if throttle_cmd > 0.05:
-        t += throttle_cmd * 0.48 * dt
+        t += throttle_cmd * 0.62 * dt
     elif throttle_cmd < -0.05:
-        t += throttle_cmd * 0.72 * dt
+        t += throttle_cmd * 0.95 * dt
     else:
-        t += (THROTTLE_IDLE - t) * 0.42 * dt
+        t += (THROTTLE_IDLE - t) * 0.55 * dt
     if boost:
         t = min(1.12, t + 0.65 * dt)
     return float(max(0.0, min(1.12, t)))
@@ -72,11 +72,7 @@ def update_free_flight(
     bank -= bank * BANK_DAMP * dt
     bank = float(max(-BANK_MAX, min(BANK_MAX, bank)))
 
-    yaw_rate = (
-        yaw_input * YAW_RATE_MAX * tf
-        + bank * BANK_TO_YAW * tf
-        + roll_input * YAW_RATE_MAX * 0.65 * tf
-    )
+    yaw_rate = yaw_input * YAW_RATE_MAX * tf + bank * BANK_TO_YAW * tf
     pitch_rate = (
         pitch_input * PITCH_RATE_MAX * tf
         + vertical_input * VERTICAL_PITCH_RATE * tf
@@ -102,6 +98,6 @@ def update_free_flight(
     )
     climb = speed * math.sin(pitch) * CLIMB_FROM_PITCH
     if abs(vertical_input) > 0.05:
-        climb += vertical_input * 135.0
+        climb += vertical_input * 95.0
 
     return heading, pitch, bank, speed, vel, climb
