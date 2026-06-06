@@ -25,7 +25,13 @@ from physics.arena import (
     clamp_entity_to_sphere,
     random_point_in_sphere,
 )
-from physics.drone_ai import apply_evasion_velocity, compute_missile_threat_3d
+from physics.drone_ai import (
+    apply_evasion_velocity,
+    apply_separation_velocity,
+    compute_drone_separation,
+    compute_missile_threat_3d,
+    resolve_drone_overlap,
+)
 from physics.combat import (
     BULLET_LIFE,
     BULLET_RADIUS,
@@ -303,19 +309,21 @@ class SimulationEngine:
 
         for i in range(count):
             tid = f"drone-{i}"
-            x, z, alt = random_point_in_sphere(random)
+            angle = (i / max(1, count)) * math.pi * 2 + random.uniform(-0.25, 0.25)
+            spawn_r = 160 + random.uniform(40, 140)
+            x = ARENA_CENTER_X + math.cos(angle) * spawn_r
+            z = ARENA_CENTER_Z + math.sin(angle) * spawn_r
+            alt = ARENA_ALT_CENTER + random.uniform(-120, 120)
             pos = np.array([x, z], dtype=float)
-            to_player = np.array([ARENA_CENTER_X, ARENA_CENTER_Z]) - pos
-            norm = float(np.linalg.norm(to_player))
-            direction = (
-                to_player / norm if norm > 1e-6 else np.array([1.0, 0.0], dtype=float)
-            )
+            tangent = np.array([-math.sin(angle), math.cos(angle)], dtype=float)
             speed = self.config.target_speed * KMH_TO_MPS * DRONE_SPEED_RATIO
-            vel = direction * speed * (0.9 + random.uniform(0, 0.2))
+            vel = tangent * speed * (0.85 + random.uniform(0, 0.25))
+            wp_angle = angle + math.pi * 0.55 + random.uniform(-0.6, 0.6)
+            wp_r = 130 + random.uniform(30, 160)
             wp = np.array(
                 [
-                    random.uniform(ARENA_CENTER_X - 200, ARENA_CENTER_X + 200),
-                    random.uniform(ARENA_CENTER_Z - 200, ARENA_CENTER_Z + 200),
+                    ARENA_CENTER_X + math.cos(wp_angle) * wp_r,
+                    ARENA_CENTER_Z + math.sin(wp_angle) * wp_r,
                 ],
                 dtype=float,
             )
@@ -765,19 +773,45 @@ class SimulationEngine:
         tid = proj.locked_target_id or proj.target_id
         return self.targets.get(tid)
 
+    def _drone_peer_list(self, exclude_id: str) -> list[tuple[str, np.ndarray]]:
+        peers: list[tuple[str, np.ndarray]] = []
+        for tid, ent in self.targets.items():
+            if tid == exclude_id:
+                continue
+            if ent.is_drone or tid.startswith("drone-"):
+                peers.append((tid, ent.position.copy()))
+        return peers
+
     def _update_drone_target(self, target: TargetEntity, dt: float) -> None:
         speed = max(45.0, self.config.target_speed * KMH_TO_MPS * DRONE_SPEED_RATIO * 1.2)
+        peers = self._drone_peer_list(target.id)
         wp = target.drone_waypoint
-        if float(np.linalg.norm(wp)) < 1.0 or float(np.linalg.norm(target.position - wp)) < 45.0:
-            wx, wz, walt = random_point_in_sphere(random)
-            target.drone_waypoint = np.array([wx, wz], dtype=float)
-            target.altitude = target.altitude * 0.7 + walt * 0.3
+        if float(np.linalg.norm(wp)) < 1.0 or float(np.linalg.norm(target.position - wp)) < 55.0:
+            idx = int(target.id.split("-")[-1]) if "-" in target.id else 0
+            wp_angle = (idx * 1.37 + self.sim_time * 0.08) % (math.pi * 2)
+            wp_r = 150 + random.uniform(20, 130)
+            target.drone_waypoint = np.array(
+                [
+                    ARENA_CENTER_X + math.cos(wp_angle) * wp_r,
+                    ARENA_CENTER_Z + math.sin(wp_angle) * wp_r,
+                ],
+                dtype=float,
+            )
+            target.altitude = float(
+                np.clip(
+                    target.altitude + random.uniform(-60, 60),
+                    PLAYER_ALT_MIN + 80,
+                    PLAYER_ALT_MAX - 80,
+                )
+            )
             wp = target.drone_waypoint
         to_wp = wp - target.position
         wp_dist = float(np.linalg.norm(to_wp))
         if wp_dist > 1e-6:
             patrol = to_wp / wp_dist * speed
-            target.velocity = target.velocity * 0.85 + patrol * 0.15
+            target.velocity = target.velocity * 0.72 + patrol * 0.28
+        sep_dir = compute_drone_separation(target.id, target.position, peers)
+        target.velocity = apply_separation_velocity(target.velocity, sep_dir, dt, speed)
         threats = self._active_projectile_states_3d()
         dodge_dir, urgency, v_dodge = compute_missile_threat_3d(
             target.position, float(target.altitude), threats
@@ -787,9 +821,10 @@ class SimulationEngine:
                 target.velocity, dodge_dir, urgency, dt, speed * 1.2
             )
             target.altitude += v_dodge * DRONE_CLIMB_RATE * urgency * dt
-        target.maneuver_phase += dt * 2.0
-        target.altitude += math.sin(target.maneuver_phase * 0.65) * 18.0 * dt
+        target.maneuver_phase += dt * 1.6
+        target.altitude += math.sin(target.maneuver_phase * 0.55) * 12.0 * dt
         target.position = target.position + target.velocity * dt
+        target.position = resolve_drone_overlap(target.id, target.position, peers)
         vel_norm = np.linalg.norm(target.velocity)
         if vel_norm > 1e-6:
             target.velocity = target.velocity / vel_norm * speed

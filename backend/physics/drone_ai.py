@@ -7,6 +7,9 @@ import numpy as np
 EVADE_RANGE = 300.0
 EVADE_ACCEL = 340.0
 PATROL_SPEED_FACTOR = 0.6
+SEPARATION_RADIUS = 95.0
+SEPARATION_ACCEL = 280.0
+MIN_DRONE_GAP = 42.0
 
 
 def compute_missile_threat_3d(
@@ -88,6 +91,63 @@ def compute_missile_threat(
             best_urgency = urgency
             best_dir = dodge
     return best_dir, best_urgency
+
+
+def compute_drone_separation(
+    drone_id: str,
+    drone_pos: np.ndarray,
+    others: List[Tuple[str, np.ndarray]],
+) -> np.ndarray:
+    """다른 드론과 겹치지 않도록 밀어내는 방향."""
+    sep = np.zeros(2, dtype=float)
+    for oid, opos in others:
+        if oid == drone_id:
+            continue
+        rel = drone_pos - opos
+        dist = float(np.linalg.norm(rel))
+        if dist < SEPARATION_RADIUS and dist > 1e-6:
+            strength = (SEPARATION_RADIUS - dist) / SEPARATION_RADIUS
+            sep += (rel / dist) * strength * strength
+    norm = float(np.linalg.norm(sep))
+    if norm > 1e-6:
+        sep /= norm
+    return sep
+
+
+def apply_separation_velocity(
+    velocity: np.ndarray,
+    sep_dir: np.ndarray,
+    dt: float,
+    max_speed: float,
+) -> np.ndarray:
+    if float(np.linalg.norm(sep_dir)) < 0.02:
+        return velocity
+    vel = velocity + sep_dir * SEPARATION_ACCEL * dt
+    spd = float(np.linalg.norm(vel))
+    if spd > max_speed * 1.15:
+        vel = vel / spd * max_speed * 1.15
+    return vel
+
+
+def resolve_drone_overlap(
+    drone_id: str,
+    position: np.ndarray,
+    others: List[Tuple[str, np.ndarray]],
+) -> np.ndarray:
+    """너무 가까우면 위치를 즉시 밀어냄."""
+    pos = position.copy()
+    for oid, opos in others:
+        if oid == drone_id:
+            continue
+        rel = pos - opos
+        dist = float(np.linalg.norm(rel))
+        if dist < MIN_DRONE_GAP:
+            if dist < 1e-6:
+                rel = np.array([1.0, 0.0], dtype=float)
+                dist = 1.0
+            push = (rel / dist) * (MIN_DRONE_GAP - dist) * 0.55
+            pos = pos + push
+    return pos
 
 
 def apply_evasion_velocity(

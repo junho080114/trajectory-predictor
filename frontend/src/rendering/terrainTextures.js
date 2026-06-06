@@ -41,28 +41,14 @@ function fbm(x, y, oct = 4) {
 }
 
 export function sampleTerrainHeight(x, z, waveSeed = 1) {
-  const w = waveSeed * 0.41;
-  const wx = x * 0.0038 + w;
-  const wz = z * 0.0036 - w * 0.55;
-  const base = fbm(wx, wz, 5) * 42;
-  const ridges = Math.pow(fbm(wx * 2.3 + 11, wz * 2.1 - 7, 4), 1.6) * 68;
-  const peaks = Math.max(0, fbm(wx * 0.75 + 33, wz * 0.8 + 19, 4) - 0.38) * 110;
-  const canyon = Math.sin(wx * 1.4) * Math.cos(wz * 1.1) * 12;
-  const detail =
-    Math.sin(x * 0.045 + w) * Math.cos(z * 0.038) * 4 +
-    Math.sin(x * 0.11 + z * 0.09) * 2.2;
-  return base + ridges + peaks + canyon + detail - 22;
-}
-
-/** 지형 고도(m) — 항공 고도(4500m대) 대비 지표면 오프셋 */
-export function terrainSurfaceWorldY(x, z, waveSeed = 1) {
-  return sampleTerrainHeight(x, z, waveSeed) * 0.85;
-}
-
-export function isTerrainWater(x, z, waveSeed = 1) {
-  const h = sampleTerrainHeight(x, z, waveSeed);
-  const moist = fbm(x * 0.006 + waveSeed, z * 0.006, 2);
-  return h < -6 && moist > 0.42;
+  const w = waveSeed * 0.31;
+  return (
+    Math.sin(x * (0.008 + w * 0.001)) * 7 +
+    Math.cos(z * (0.009 - w * 0.0008)) * 6 +
+    Math.sin((x + z) * (0.006 + w * 0.0012)) * 4 +
+    Math.sin(x * (0.022 + w * 0.002) + z * 0.019) * 2 +
+    Math.cos(x * (0.035 + w * 0.0015)) * Math.sin(z * (0.032 - w * 0.001)) * 1.5
+  );
 }
 
 /** 웨이브마다 다른 지형 텍스처 (캐시) */
