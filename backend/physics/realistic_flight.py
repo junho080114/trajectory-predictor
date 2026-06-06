@@ -18,7 +18,7 @@ SPEED_DECEL = 2.0
 MIN_SPEED_RATIO = 0.12
 THROTTLE_IDLE = 0.0
 COAST_BRAKE = 0.62
-VERTICAL_PITCH_RATE = 1.15
+VERTICAL_PITCH_RATE = 1.55
 CLIMB_FROM_PITCH = 0.95
 DRAG_COAST = 0.45
 
@@ -67,12 +67,16 @@ def update_free_flight(
     """
     tf = speed_turn_factor(speed, max_mps)
 
-    roll_rate = -roll_input * ROLL_RATE_MAX * tf
+    roll_rate = roll_input * ROLL_RATE_MAX * tf
     bank += roll_rate * dt
     bank -= bank * BANK_DAMP * dt
     bank = float(max(-BANK_MAX, min(BANK_MAX, bank)))
 
-    yaw_rate = yaw_input * YAW_RATE_MAX * tf + bank * BANK_TO_YAW * tf
+    yaw_rate = (
+        yaw_input * YAW_RATE_MAX * tf
+        + bank * BANK_TO_YAW * tf
+        + roll_input * YAW_RATE_MAX * 0.65 * tf
+    )
     pitch_rate = (
         pitch_input * PITCH_RATE_MAX * tf
         + vertical_input * VERTICAL_PITCH_RATE * tf
@@ -98,6 +102,6 @@ def update_free_flight(
     )
     climb = speed * math.sin(pitch) * CLIMB_FROM_PITCH
     if abs(vertical_input) > 0.05:
-        climb += vertical_input * 95.0
+        climb += vertical_input * 135.0
 
     return heading, pitch, bank, speed, vel, climb
