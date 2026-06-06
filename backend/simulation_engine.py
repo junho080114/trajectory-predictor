@@ -211,7 +211,7 @@ class SimulationEngine:
         """자유 비행: 스로틀·뱅크·마우스 각속도 조종."""
         del aim_x, aim_y, yaw_input, pitch_input, look_heading, look_pitch
         clamp = lambda v: float(max(-1.0, min(1.0, v)))
-        self._player_strafe = clamp(
+        self._player_strafe = -clamp(
             move_strafe if abs(move_strafe) > 1e-6 else move_x
         )
         fwd = move_forward if abs(move_forward) > 1e-6 else move_y
@@ -226,9 +226,8 @@ class SimulationEngine:
             self._player_yaw_input = clamp(yaw_rate)
             self._player_pitch_input = clamp(pitch_rate)
         else:
-            # view_yaw/pitch = 시야·조준만 (마우스), 기체 선회는 A/D 뱅크
-            self._player_yaw_input = 0.0
-            self._player_pitch_input = 0.0
+            self._player_yaw_input = clamp(self._player_view_yaw * 1.15)
+            self._player_pitch_input = clamp(self._player_view_pitch * 1.15)
 
     def _spawn_targets(self) -> None:
         self.targets.clear()
@@ -479,7 +478,6 @@ class SimulationEngine:
             dt,
         )
 
-        strafe = self._player_strafe
         target.heading = heading
         target.pitch = pitch
         target.bank = bank
@@ -492,13 +490,6 @@ class SimulationEngine:
 
         target.throttle = min(1.12, self._player_throttle_state)
         target.position = target.position + target.velocity * dt
-
-        if abs(strafe) > 0.02 and speed_est > 18.0:
-            lateral = speed_est * 0.38 * strafe
-            target.position = target.position + np.array(
-                [math.cos(heading) * lateral * dt, -math.sin(heading) * lateral * dt],
-                dtype=float,
-            )
 
         self._player_yaw_input *= max(0.0, 1.0 - 4.5 * dt)
         self._player_pitch_input *= max(0.0, 1.0 - 4.5 * dt)

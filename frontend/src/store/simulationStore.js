@@ -172,8 +172,13 @@ export const useSimulationStore = create((set, get) => ({
   },
   addControlRates: (yawDelta, pitchDelta) => {
     const y = Math.max(-1, Math.min(1, get().yawRate + yawDelta));
-    const p = Math.max(-1, Math.min(1, get().pitchRate + pitchDelta));
-    set({ yawRate: y, pitchRate: p });
+    const p = Math.max(-1, Math.min(1, get().pitchRate - pitchDelta));
+    set({
+      yawRate: y,
+      pitchRate: p,
+      viewYaw: Math.max(-0.9, Math.min(0.9, get().viewYaw + yawDelta * 0.35)),
+      viewPitch: Math.max(-0.75, Math.min(0.75, get().viewPitch - pitchDelta * 0.35)),
+    });
   },
   decayControlRates: (dt) => {
     const d = Math.exp(-5.5 * dt);

@@ -109,7 +109,7 @@ export default function ControlPanel({
       {config.player_control && (
         <div className="text-xs text-cyan-300/90 bg-cyan-950/40 border border-cyan-800/50 rounded p-2 leading-relaxed">
           <p className="font-bold text-cyan-200 mb-1">전투 조작</p>
-          <p>W/S 스로틀 · A/D 좌우 이동/선회 · Space/Ctrl 고도</p>
+          <p>W/S 스로틀 · A/D 선회 · Space/Ctrl 고도</p>
           <p>클릭+마우스 조준 · 좌클릭/F 기관포</p>
           <p>적 미사일 회피 · 드론 격추로 점수</p>
           <p>V 시점 · 휠 줌</p>

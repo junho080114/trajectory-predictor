@@ -72,11 +72,7 @@ def update_free_flight(
     bank -= bank * BANK_DAMP * dt
     bank = float(max(-BANK_MAX, min(BANK_MAX, bank)))
 
-    yaw_rate = (
-        yaw_input * YAW_RATE_MAX * tf
-        + bank * BANK_TO_YAW * tf
-        + roll_input * YAW_RATE_MAX * 0.85 * tf
-    )
+    yaw_rate = yaw_input * YAW_RATE_MAX * tf + bank * BANK_TO_YAW * tf
     pitch_rate = (
         pitch_input * PITCH_RATE_MAX * tf
         + vertical_input * VERTICAL_PITCH_RATE * tf

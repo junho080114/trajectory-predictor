@@ -306,13 +306,15 @@ export default function Scene3D() {
       const st = useSimulationStore.getState();
 
       const sens = 0.0034;
+      const mx = -e.movementX * sens;
+      const my = -e.movementY * sens;
       if (st.cameraMode === 'orbit') {
-        st.addOrbitYaw(e.movementX * sens * 1.2);
-        st.addOrbitPitch(-e.movementY * sens);
+        st.addOrbitYaw(mx * 1.2);
+        st.addOrbitPitch(my);
       } else {
-        // 마우스 이동 방향 = 시야 이동 (기체 선회와 분리)
-        st.addViewYaw(e.movementX * sens);
-        st.addViewPitch(-e.movementY * sens);
+        st.addViewYaw(mx);
+        st.addViewPitch(my);
+        st.addControlRates(mx * 0.4, my * 0.4);
       }
 
     };
