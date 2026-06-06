@@ -23,8 +23,8 @@ function buildPayload(keys) {
 
   if (keys.has('KeyW')) throttle += 1;
   if (keys.has('KeyS')) throttle -= 1;
-  if (keys.has('KeyA')) moveStrafe += 1;
-  if (keys.has('KeyD')) moveStrafe -= 1;
+  if (keys.has('KeyA')) moveStrafe -= 1;
+  if (keys.has('KeyD')) moveStrafe += 1;
   if (keys.has('Space')) moveVertical = 1;
   else if (keys.has('ControlLeft') || keys.has('ControlRight')) moveVertical = -1;
   if (keys.has('ShiftLeft') || keys.has('ShiftRight')) boost = true;

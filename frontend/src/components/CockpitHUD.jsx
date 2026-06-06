@@ -160,7 +160,7 @@ export default function CockpitHUD() {
 
       {/* 하단 조작 힌트 */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] text-green-500/50 font-mono">
-        W/S 스로틀 · Space/Ctrl 상하 · Shift WEP · A/D 선회 · 마우스 시야 · V 시점
+        W/S 스로틀 · Space/Ctrl 상하 · Shift WEP · A/D 좌우 · 마우스 시야 · V 시점
       </div>
     </div>
   );
