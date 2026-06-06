@@ -88,6 +88,7 @@ export function getTerrainMapTexture(waveSeed = 1) {
       const wx = (px / size - 0.5) * worldSize + cx;
       const wz = (py / size - 0.5) * worldSize + cz;
 
+      const th = sampleTerrainHeight(wx, wz, key);
       const n1 = fbm(wx * 0.011 + phase, wz * 0.011 - phase * 0.6, 4);
       const n2 = fbm(wx * 0.038 + 30 + phase, wz * 0.034, 3);
       const moist = fbm(wx * 0.018 - phase, wz * 0.02 + 12, 2);
@@ -96,10 +97,22 @@ export function getTerrainMapTexture(waveSeed = 1) {
       let g = 58 + n1 * 62 + moist * 28;
       let b = 26 + n1 * 22 + n2 * 10;
 
-      if (n2 > 0.58) {
+      if (isTerrainWater(wx, wz, key)) {
+        r = 28 + moist * 18;
+        g = 72 + moist * 22;
+        b = 108 + n1 * 20;
+      } else if (th > 55) {
+        r = 210 + n2 * 18;
+        g = 218 + n2 * 14;
+        b = 228 + n2 * 10;
+      } else if (th > 38) {
         r = 62 + n2 * 28;
         g = 58 + n2 * 22;
         b = 44 + n2 * 16;
+      } else if (n2 > 0.58) {
+        r = 48 + n2 * 22;
+        g = 72 + n2 * 28;
+        b = 32 + n2 * 12;
       }
 
       const gridX = Math.abs((wx % 100) - 50) < 0.8;
