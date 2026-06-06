@@ -61,13 +61,26 @@ export function createSkyEnvironment(scene) {
   });
 
   const cloudSprites = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 18; i++) {
     const spr = new THREE.Sprite(cloudMat.clone());
-    spr.material.opacity = 0.14 + (i % 4) * 0.05;
-    const s = 180 + (i % 5) * 40;
-    spr.scale.set(s * 1.4, s * 0.35, 1);
+    spr.material.opacity = 0.12 + (i % 4) * 0.05;
+    const s = 160 + (i % 5) * 45;
+    spr.scale.set(s * 1.5, s * 0.38, 1);
     root.add(spr);
     cloudSprites.push(spr);
+  }
+
+  const layerMats = [
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: 0xe8f0ff, transparent: true, opacity: 0.06, depthWrite: false }),
+  ];
+  const cloudLayers = [];
+  for (let li = 0; li < 2; li++) {
+    const layer = new THREE.Mesh(new THREE.PlaneGeometry(3200, 3200), layerMats[li]);
+    layer.rotation.x = -Math.PI / 2;
+    layer.position.y = 55 + li * 38;
+    root.add(layer);
+    cloudLayers.push(layer);
   }
 
   scene.add(root);
@@ -80,15 +93,20 @@ export function createSkyEnvironment(scene) {
     root,
     follow(centerX, centerZ, altM = 4500, heading = 0, _vx = 0, _vz = 0, bounds = null) {
       const altY = altitudeToY(altM);
-      root.position.set(centerX, altY * 0.06, centerZ);
-      root.rotation.y = heading * 0.06;
+      const altNorm = Math.max(0, Math.min(1, (altM - 4000) / 1000));
+      root.position.set(centerX, altY * 0.04, centerZ);
+      root.rotation.y = heading * 0.05;
+
+      cloudLayers[0].position.set(centerX, 48 + altY * 0.08, centerZ);
+      cloudLayers[1].position.set(centerX, 88 + altY * 0.12, centerZ);
 
       const cell = Math.floor(centerX / 400) + Math.floor(centerZ / 400) * 1000;
       if (cell !== lastCell) {
         lastCell = cell;
         for (let i = 0; i < cloudSprites.length; i++) {
           const off = cloudLocalPos(i, centerX, centerZ);
-          cloudSprites[i].position.set(off.x, 42 + (i % 5) * 14, off.z);
+          const layer = i % 3;
+          cloudSprites[i].position.set(off.x, 36 + layer * 22 + (i % 5) * 8, off.z);
         }
       }
 
@@ -106,11 +124,11 @@ export function createSkyEnvironment(scene) {
       const cx = bounds?.centerX ?? ARENA.cx;
       scene.background.setHSL(
         0.55 + ((centerX - cx) / span) * 0.025,
-        0.38,
-        0.52 + Math.min(0.14, altY / 400)
+        0.32 + altNorm * 0.12,
+        0.54 + altNorm * 0.18
       );
-      scene.fog.density = 0.000085 + edgeFactor * 0.000035;
-      scene.fog.color.setHSL(0.58, 0.28, 0.72);
+      scene.fog.density = Math.max(0.00004, 0.00011 - altNorm * 0.00006) + edgeFactor * 0.00003;
+      scene.fog.color.setHSL(0.58, 0.22 + altNorm * 0.1, 0.7 + altNorm * 0.12);
     },
     dispose() {
       scene.remove(root);
@@ -119,6 +137,10 @@ export function createSkyEnvironment(scene) {
       grad.dispose();
       sunTex.dispose();
       cloudSprites.forEach((s) => s.material.dispose());
+      cloudLayers.forEach((l) => {
+        l.geometry.dispose();
+        l.material.dispose();
+      });
     },
   };
 }

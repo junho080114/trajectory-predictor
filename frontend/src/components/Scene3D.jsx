@@ -575,11 +575,8 @@ export default function Scene3D() {
             boundsInfo
           );
 
-          flightGround.setAltitude(pAlt);
           const wave = st.game?.wave ?? 1;
-          flightGround.setWave(wave);
-
-          flightGround.scroll(px, pz);
+          flightGround.update(px, pz, pAlt, wave);
 
           worldBounds.setAltitude(pAlt);
           sunRef.light.position.set(px + 400, altitudeToY(pAlt) + 800, pz + 200);
