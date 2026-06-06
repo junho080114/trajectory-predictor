@@ -10,18 +10,18 @@ const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 export const FIGHTER_MESH_VERSION = 6;
 export const DRONE_MESH_VERSION = 2;
 
-const SMOOTH_POS = 11;
-const SMOOTH_ALT = 9;
-const SMOOTH_ROT = 9;
-const SMOOTH_ROT_DIRECT = 16;
-const SMOOTH_VEL = 7;
-const SMOOTH_POS_PLAYER = 16;
+const SMOOTH_POS = 9;
+const SMOOTH_ALT = 8;
+const SMOOTH_ROT = 8;
+const SMOOTH_ROT_DIRECT = 12;
+const SMOOTH_VEL = 6;
+const SMOOTH_POS_PLAYER = 11;
 
 const sharedMat = {
-  fighterBody: new THREE.MeshLambertMaterial({ color: 0x5a7a94 }),
-  fighterWing: new THREE.MeshLambertMaterial({ color: 0x4a6a82 }),
-  fighterDark: new THREE.MeshLambertMaterial({ color: 0x3a5068 }),
-  fighterGlass: new THREE.MeshLambertMaterial({ color: 0x88bbdd, transparent: true, opacity: 0.75 }),
+  fighterBody: new THREE.MeshLambertMaterial({ color: 0x6a8498 }),
+  fighterWing: new THREE.MeshLambertMaterial({ color: 0x556d80 }),
+  fighterDark: new THREE.MeshLambertMaterial({ color: 0x3d5268 }),
+  fighterGlass: new THREE.MeshLambertMaterial({ color: 0x9ec8e8, transparent: true, opacity: 0.82 }),
   exhaust: new THREE.MeshBasicMaterial({
     color: 0xffaa55,
     transparent: true,
@@ -349,5 +349,6 @@ export function getAircraftPose(group, flight = {}) {
     z: s.z,
     yaw: s.yaw ?? flight.heading ?? 0,
     pitch: s.pitch ?? flight.pitch ?? 0,
+    bank: s.bank ?? flight.bank ?? 0,
   };
 }

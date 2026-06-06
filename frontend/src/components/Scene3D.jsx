@@ -44,6 +44,7 @@ import {
 } from '../rendering/aircraftMeshes';
 
 import { updateFlightCamera, cameraModeLabel } from '../rendering/flightCamera';
+import { createDisplayInterpolator } from '../rendering/displayInterpolator';
 import ArcadeCombatHUD from './ArcadeCombatHUD';
 import CockpitHUD from './CockpitHUD';
 
@@ -156,8 +157,16 @@ export default function Scene3D() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
 
     container.appendChild(renderer.domElement);
+
+    const cinematic = document.createElement('div');
+    cinematic.className = 'cinematic-overlay';
+    container.appendChild(cinematic);
+
+    const displayInterp = createDisplayInterpolator();
 
 
 
