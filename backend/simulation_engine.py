@@ -548,20 +548,33 @@ class SimulationEngine:
         ]
 
     def _respawn_drone(self, target: TargetEntity) -> None:
-        x, z, alt = random_point_in_sphere(random)
-        target.position = np.array([x, z], dtype=float)
-        target.altitude = alt
-        center = np.array([ARENA_CENTER_X, ARENA_CENTER_Z])
-        to_center = center - target.position
-        norm = np.linalg.norm(to_center)
-        direction = to_center / norm if norm > 1e-6 else np.array([1.0, 0.0])
+        peers = self._drone_peer_list(target.id)
+        best_pos = None
+        for _ in range(12):
+            angle = random.uniform(0, math.pi * 2)
+            spawn_r = random.uniform(140, 280)
+            x = ARENA_CENTER_X + math.cos(angle) * spawn_r
+            z = ARENA_CENTER_Z + math.sin(angle) * spawn_r
+            pos = np.array([x, z], dtype=float)
+            if all(float(np.linalg.norm(pos - op)) > 70 for _, op in peers):
+                best_pos = pos
+                break
+            if best_pos is None:
+                best_pos = pos
+        target.position = best_pos if best_pos is not None else np.array([ARENA_CENTER_X, ARENA_CENTER_Z])
+        target.altitude = float(
+            np.clip(ARENA_ALT_CENTER + random.uniform(-100, 100), PLAYER_ALT_MIN + 80, PLAYER_ALT_MAX - 80)
+        )
+        tangent = np.array([-math.sin(angle), math.cos(angle)], dtype=float) if best_pos is not None else np.array([1.0, 0.0])
         speed = self.config.target_speed * KMH_TO_MPS * DRONE_SPEED_RATIO
-        target.velocity = direction * speed
+        target.velocity = tangent * speed
         target.is_drone = True
+        wp_angle = random.uniform(0, math.pi * 2)
+        wp_r = random.uniform(120, 220)
         target.drone_waypoint = np.array(
             [
-                random.uniform(160, CANVAS_WIDTH - 160),
-                random.uniform(100, CANVAS_HEIGHT - 100),
+                ARENA_CENTER_X + math.cos(wp_angle) * wp_r,
+                ARENA_CENTER_Z + math.sin(wp_angle) * wp_r,
             ],
             dtype=float,
         )

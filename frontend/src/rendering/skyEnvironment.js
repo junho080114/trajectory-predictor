@@ -61,26 +61,13 @@ export function createSkyEnvironment(scene) {
   });
 
   const cloudSprites = [];
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 8; i++) {
     const spr = new THREE.Sprite(cloudMat.clone());
-    spr.material.opacity = 0.12 + (i % 4) * 0.05;
-    const s = 160 + (i % 5) * 45;
-    spr.scale.set(s * 1.5, s * 0.38, 1);
+    spr.material.opacity = 0.1 + (i % 3) * 0.04;
+    const s = 150 + (i % 4) * 35;
+    spr.scale.set(s * 1.3, s * 0.32, 1);
     root.add(spr);
     cloudSprites.push(spr);
-  }
-
-  const layerMats = [
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, depthWrite: false }),
-    new THREE.MeshBasicMaterial({ color: 0xe8f0ff, transparent: true, opacity: 0.06, depthWrite: false }),
-  ];
-  const cloudLayers = [];
-  for (let li = 0; li < 2; li++) {
-    const layer = new THREE.Mesh(new THREE.PlaneGeometry(3200, 3200), layerMats[li]);
-    layer.rotation.x = -Math.PI / 2;
-    layer.position.y = 55 + li * 38;
-    root.add(layer);
-    cloudLayers.push(layer);
   }
 
   scene.add(root);
@@ -96,16 +83,12 @@ export function createSkyEnvironment(scene) {
       root.position.set(centerX, altY * 0.06, centerZ);
       root.rotation.y = heading * 0.06;
 
-      cloudLayers[0].position.set(centerX, 48, centerZ);
-      cloudLayers[1].position.set(centerX, 88, centerZ);
-
       const cell = Math.floor(centerX / 400) + Math.floor(centerZ / 400) * 1000;
       if (cell !== lastCell) {
         lastCell = cell;
         for (let i = 0; i < cloudSprites.length; i++) {
           const off = cloudLocalPos(i, centerX, centerZ);
-          const layer = i % 3;
-          cloudSprites[i].position.set(off.x, 36 + layer * 22 + (i % 5) * 8, off.z);
+          cloudSprites[i].position.set(off.x, 40 + (i % 4) * 12, off.z);
         }
       }
 
@@ -136,10 +119,6 @@ export function createSkyEnvironment(scene) {
       grad.dispose();
       sunTex.dispose();
       cloudSprites.forEach((s) => s.material.dispose());
-      cloudLayers.forEach((l) => {
-        l.geometry.dispose();
-        l.material.dispose();
-      });
     },
   };
 }
