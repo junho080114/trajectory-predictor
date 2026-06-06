@@ -821,6 +821,7 @@ export default function Scene3D() {
       renderer.dispose();
 
       container.removeChild(renderer.domElement);
+      if (cinematic.parentNode === container) container.removeChild(cinematic);
 
     };
 
