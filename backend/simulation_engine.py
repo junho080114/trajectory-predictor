@@ -479,6 +479,7 @@ class SimulationEngine:
             dt,
         )
 
+        strafe = self._player_strafe
         target.heading = heading
         target.pitch = pitch
         target.bank = bank
@@ -491,6 +492,13 @@ class SimulationEngine:
 
         target.throttle = min(1.12, self._player_throttle_state)
         target.position = target.position + target.velocity * dt
+
+        if abs(strafe) > 0.02 and speed_est > 18.0:
+            lateral = speed_est * 0.38 * strafe
+            target.position = target.position + np.array(
+                [math.cos(heading) * lateral * dt, -math.sin(heading) * lateral * dt],
+                dtype=float,
+            )
 
         self._player_yaw_input *= max(0.0, 1.0 - 4.5 * dt)
         self._player_pitch_input *= max(0.0, 1.0 - 4.5 * dt)
