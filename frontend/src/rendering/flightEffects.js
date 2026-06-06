@@ -133,7 +133,8 @@ export function createFlightEffects(scene) {
         const vy = p.velocity?.y ?? 0;
         const spd = Math.hypot(vx, vy);
 
-        const fx = getMissileFx(p.id);
+        const isThreat = !!p.homing && !p.from_player;
+        const fx = getMissileFx(p.id, isThreat);
         fx.group.position.set(x, y, z);
 
         const yaw = Math.atan2(vx, vy);
@@ -151,15 +152,22 @@ export function createFlightEffects(scene) {
         fx.trailGeo.attributes.position.needsUpdate = true;
         fx.trailGeo.setDrawRange(0, Math.max(2, n));
 
-        if (spd > 50 && Math.random() < 0.35) {
+        if (isThreat && fx.core) {
+          const pulse = 0.38 + Math.sin(Date.now() * 0.018) * 0.22;
+          fx.core.material.opacity = pulse;
+          fx.core.scale.setScalar(0.9 + pulse * 0.35);
+        }
+
+        const smokeChance = isThreat ? 0.55 : 0.35;
+        if (spd > 50 && Math.random() < smokeChance) {
           tmp.set(x, y, z);
           back.set(-Math.sin(yaw), 0, -Math.cos(yaw));
           spawnParticle(
             pool,
             tmp,
             back.multiplyScalar(-12).add(new THREE.Vector3((Math.random() - 0.5) * 4, 0, (Math.random() - 0.5) * 4)),
-            0.35 + Math.random() * 0.2,
-            'smoke'
+            isThreat ? 0.5 + Math.random() * 0.25 : 0.35 + Math.random() * 0.2,
+            isThreat ? 'flame' : 'smoke'
           );
         }
       }
