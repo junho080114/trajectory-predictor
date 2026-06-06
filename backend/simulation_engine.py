@@ -39,6 +39,7 @@ from physics.combat import (
     CANNON_DAMAGE,
     CANNON_RANGE,
     CANNON_SPEED,
+    DRONE_HIT_RADIUS,
     DRONE_MAX_HP,
     HIT_SCORE,
     INTERCEPT_SCORE,
@@ -310,7 +311,7 @@ class SimulationEngine:
         for i in range(count):
             tid = f"drone-{i}"
             angle = (i / max(1, count)) * math.pi * 2 + random.uniform(-0.25, 0.25)
-            spawn_r = 160 + random.uniform(40, 140)
+            spawn_r = 240 + random.uniform(60, 200)
             x = ARENA_CENTER_X + math.cos(angle) * spawn_r
             z = ARENA_CENTER_Z + math.sin(angle) * spawn_r
             alt = ARENA_ALT_CENTER + random.uniform(-120, 120)
@@ -319,7 +320,7 @@ class SimulationEngine:
             speed = self.config.target_speed * KMH_TO_MPS * DRONE_SPEED_RATIO
             vel = tangent * speed * (0.85 + random.uniform(0, 0.25))
             wp_angle = angle + math.pi * 0.55 + random.uniform(-0.6, 0.6)
-            wp_r = 130 + random.uniform(30, 160)
+            wp_r = 200 + random.uniform(50, 220)
             wp = np.array(
                 [
                     ARENA_CENTER_X + math.cos(wp_angle) * wp_r,
@@ -679,6 +680,7 @@ class SimulationEngine:
                 tgt.position,
                 tgt.altitude,
                 player.altitude,
+                radius=DRONE_HIT_RADIUS,
                 max_dist=CANNON_RANGE,
             )
             if along is not None and along < best_along:

@@ -308,20 +308,50 @@ export function createMissile3D(_texture, homing, hpMax = 0) {
   const group = new THREE.Group();
   group.userData.smooth = { x: 0, y: 18, z: 0, yaw: 0, quat: new THREE.Quaternion() };
   group.userData.hpMax = hpMax;
+  group.userData.isHoming = homing;
 
-  const color = homing ? 0xcc4422 : 0x667070;
-  const mat = new THREE.MeshLambertMaterial({ color });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.2, 12, 6), mat);
+  const threat = !!homing;
+  const bodyColor = threat ? 0xff5500 : 0x99aabb;
+  const bodyMat = new THREE.MeshBasicMaterial({ color: bodyColor });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.4, 20, 8), bodyMat);
   body.rotation.x = Math.PI / 2;
   group.add(body);
 
   const warhead = new THREE.Mesh(
-    new THREE.ConeGeometry(1.1, 3, 6),
-    new THREE.MeshLambertMaterial({ color: 0xff3322 })
+    new THREE.ConeGeometry(2.2, 5, 8),
+    new THREE.MeshBasicMaterial({ color: threat ? 0xff1100 : 0xcc4444 })
   );
   warhead.rotation.x = -Math.PI / 2;
-  warhead.position.z = 7.5;
+  warhead.position.z = 12.5;
   group.add(warhead);
+
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(threat ? 4.5 : 3, 10, 10),
+    new THREE.MeshBasicMaterial({
+      color: threat ? 0xff4400 : 0x88aacc,
+      transparent: true,
+      opacity: threat ? 0.42 : 0.22,
+      depthWrite: false,
+    })
+  );
+  group.add(glow);
+
+  if (threat) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(3.2, 4.8, 12),
+      new THREE.MeshBasicMaterial({
+        color: 0xff2200,
+        transparent: true,
+        opacity: 0.55,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.z = 2;
+    group.add(ring);
+    group.userData.warningRing = ring;
+  }
 
   return group;
 }
@@ -338,6 +368,13 @@ export function updateMissile3D(group, simX, simY, vx, vy, dt, altM = 4300) {
   const h = headingFromVelocity(s.svx, s.svz);
   if (h != null) orientGroupToHeading(group, h, 0, 0, dt);
   else orientGroupToVelocity(group, s.svx, s.svz, 0, 0, dt);
+
+  const ring = group.userData.warningRing;
+  if (ring) {
+    ring.rotation.z += dt * 4.5;
+    const pulse = 0.45 + Math.sin(Date.now() * 0.012) * 0.2;
+    ring.material.opacity = pulse;
+  }
 }
 
 export function getAircraftPose(group, flight = {}) {

@@ -6,7 +6,7 @@ export const ARENA = {
   cx: 600,
   cz: 350,
   alt: 4500,
-  radius: 500,
+  radius: 720,
 };
 
 /** 구 경계까지 남은 거리(m), 음수면 밖 */

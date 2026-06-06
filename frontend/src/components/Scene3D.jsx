@@ -210,9 +210,9 @@ export default function Scene3D() {
     scene.add(lockLines);
 
     const lockMat = new THREE.LineBasicMaterial({
-      color: 0xff4422,
+      color: 0xff2200,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.72,
     });
 
     const lockLinePool = [];
@@ -559,7 +559,7 @@ export default function Scene3D() {
 
           const a = st.arena;
           const boundsInfo = {
-            radius: a?.radius ?? 500,
+            radius: a?.radius ?? 720,
             centerX: a?.center?.x ?? ARENA.cx,
             centerZ: a?.center?.z ?? ARENA.cz,
             centerAlt: a?.center?.altitude ?? ARENA.alt,

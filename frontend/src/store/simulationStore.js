@@ -53,7 +53,7 @@ export const useSimulationStore = create((set, get) => ({
   arena: {
     shape: 'sphere',
     center: { x: 600, z: 350, altitude: 4500 },
-    radius: 500,
+    radius: 720,
   },
   launcher: { x: 100, y: 600 },
   targets: [],

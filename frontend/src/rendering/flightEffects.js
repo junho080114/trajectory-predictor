@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { altitudeToY } from './skyEnvironment';
 
 const MAX_PARTICLES = 72;
-const TRAIL_LEN = 10;
+const TRAIL_LEN = 18;
 
 function spawnParticle(pool, pos, vel, life, kind) {
   const p = pool.find((x) => !x.active);
@@ -71,19 +71,38 @@ export function createFlightEffects(scene) {
   const trailMat = new THREE.LineBasicMaterial({
     color: 0xff6633,
     transparent: true,
-    opacity: 0.4,
+    opacity: 0.5,
   });
 
-  function getMissileFx(id) {
+  function getMissileFx(id, isThreat = false) {
     if (!missileFx.has(id)) {
       const g = new THREE.Group();
       const trailGeo = new THREE.BufferGeometry();
       const trailPos = new Float32Array(TRAIL_LEN * 3);
       trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
-      const trail = new THREE.Line(trailGeo, trailMat);
+      const mat = isThreat
+        ? new THREE.LineBasicMaterial({
+            color: 0xff2200,
+            transparent: true,
+            opacity: 0.88,
+          })
+        : trailMat;
+      const trail = new THREE.Line(trailGeo, mat);
       g.add(trail);
+      if (isThreat) {
+        const core = new THREE.Mesh(
+          new THREE.SphereGeometry(2.8, 8, 8),
+          new THREE.MeshBasicMaterial({
+            color: 0xff4400,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+          })
+        );
+        g.add(core);
+      }
       group.add(g);
-      missileFx.set(id, { group: g, trail, trailGeo, trailPos, points: [] });
+      missileFx.set(id, { group: g, trail, trailGeo, trailPos, points: [], isThreat, core: g.children[1] });
     }
     return missileFx.get(id);
   }
